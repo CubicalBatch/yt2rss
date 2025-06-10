@@ -1,0 +1,8 @@
+yt-dlp
+pyyaml
+feedgen
+flask
+feedparser
+APScheduler==3.10.4
+pytest
+Pillow

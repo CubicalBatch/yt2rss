@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>yt2rss - YouTube to RSS Feeds</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎧</text></svg>">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎧 yt2rss</h1>
+            <p>YouTube to RSS - Transform channels into podcast feeds</p>
+            <div class="header-controls">
+                <button class="add-channel-btn" onclick="openAddChannelModal()">
+                    ➕ Add New Channel
+                </button>
+                <button class="refresh-btn" id="refreshBtn" onclick="triggerRefresh()">
+                    🔄 Refresh Podcasts
+                </button>
+                <button class="settings-btn" onclick="openScheduleModal()">
+                    ⚙️ Scheduler Settings
+                </button>
+            </div>
+        </div>
+        
+        {% if podcasts %}
+        <div class="podcasts-grid">
+            {% for podcast in podcasts %}
+            <div class="podcast-card">
+                <div class="status-container">
+                    {% if podcast.last_refresh %}
+                    <div class="last-refresh-tag" data-timestamp="{{ podcast.last_refresh }}">
+                        Loading...
+                    </div>
+                    {% else %}
+                    <div class="last-refresh-tag no-refresh">
+                        Never
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <h2 class="podcast-title">{{ podcast.name }}</h2>
+                <a href="{{ podcast.url }}" target="_blank" class="podcast-url">{{ podcast.url }}</a>
+                
+                <div class="channel-actions">
+                    <button class="edit-btn" onclick="openEditChannelModal('{{ podcast.original_name }}')">
+                        ✏️ Edit
+                    </button>
+                </div>
+                
+                <div class="podcast-stats">
+                    <div class="stat">
+                        <span class="stat-value">{{ podcast.episode_count }}</span>
+                        <span class="stat-label">Episodes</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-value">{{ podcast.max_episodes }}</span>
+                        <span class="stat-label">Max Episodes</span>
+                    </div>
+                </div>
+                
+                
+                <div class="podcast-config">
+                    <div class="config-title">Configuration</div>
+                    <div class="config-item">Format: {{ podcast.format.title() }}</div>
+                    <div class="config-item">Quality: {{ 'Maximum' if podcast.quality == 'max' else podcast.quality.upper() }}</div>
+                    <div class="config-item">Download Delay: {{ podcast.download_delay_hours }} hours</div>
+                    {% if podcast.sponsorblock_categories %}
+                    <div class="config-item">
+                        SponsorBlock Categories:
+                        <div class="sponsorblock-tags">
+                            {% for category in podcast.sponsorblock_categories %}
+                            <span class="tag">{{ category }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <button class="copy-button" onclick="copyFeedUrl('{{ podcast.feed_url }}', this)">
+                    📋 Copy RSS Feed URL
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <h2>No Podcasts Configured</h2>
+            <p>Add YouTube channels to your <code>config/channels.yaml</code> file and run the downloader to get started.</p>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div id="toast" class="toast">
+        📋 Feed URL copied to clipboard!
+    </div>
+    
+    <!-- Add/Edit Channel Modal -->
+    <div id="channelModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle">Add New Channel</h2>
+                <button class="close" onclick="closeChannelModal()">&times;</button>
+            </div>
+            
+            <form id="channelForm">
+                <div class="form-group">
+                    <label class="form-label" for="channelDisplayName">
+                        Display Name *
+                        <span class="tooltip">
+                            <span class="tooltip-trigger">?</span>
+                            <span class="tooltip-content">The human-readable name for your podcast (2-100 characters). Spaces and special characters are allowed. This will appear in RSS feeds and the web interface. Example: "My Tech & AI Reviews"</span>
+                        </span>
+                    </label>
+                    <input type="text" id="channelDisplayName" class="form-input" placeholder="e.g., My Awesome Podcast!" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="channelUrl">
+                        YouTube Channel URL *
+                        <span class="tooltip">
+                            <span class="tooltip-trigger">?</span>
+                            <span class="tooltip-content">The full URL of the YouTube channel or user page. Supported formats: @username, /c/channelname, /channel/UCxxxxxx, or /user/username. The channel will be verified for accessibility before adding.</span>
+                        </span>
+                    </label>
+                    <input type="url" id="channelUrl" class="form-input" placeholder="https://www.youtube.com/@ChannelName" required>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="maxVideos">
+                            Max Episodes
+                            <span class="tooltip">
+                                <span class="tooltip-trigger">?</span>
+                                <span class="tooltip-content">Maximum number of recent episodes to include in the RSS feed. Older episodes will be removed as new ones are added.</span>
+                            </span>
+                        </label>
+                        <input type="number" id="maxVideos" class="form-input" placeholder="10" min="1" max="100">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="downloadDelay">
+                            Download Delay (hours)
+                            <span class="tooltip">
+                                <span class="tooltip-trigger">?</span>
+                                <span class="tooltip-content">How long to wait after an episode is published before downloading it. This allows time for SponsorBlock data to be created by the community, enabling better ad and sponsor segment removal.</span>
+                            </span>
+                        </label>
+                        <input type="number" id="downloadDelay" class="form-input" placeholder="6" min="0" max="168">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="format">
+                            Format
+                            <span class="tooltip">
+                                <span class="tooltip-trigger">?</span>
+                                <span class="tooltip-content">Choose whether to download full videos or extract audio only. Audio-only files are smaller and perfect for podcast listening.</span>
+                            </span>
+                        </label>
+                        <select id="format" class="form-input">
+                            <option value="video">Video</option>
+                            <option value="audio">Audio Only</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="quality">
+                            Quality
+                            <span class="tooltip">
+                                <span class="tooltip-trigger">?</span>
+                                <span class="tooltip-content">Video quality setting. Maximum quality downloads the best available resolution, while 480p limits downloads to save storage space and bandwidth.</span>
+                            </span>
+                        </label>
+                        <select id="quality" class="form-input">
+                            <option value="max">Maximum Quality</option>
+                            <option value="480p">480p</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">
+                        SponsorBlock Categories
+                        <span class="tooltip">
+                            <span class="tooltip-trigger">?</span>
+                            <span class="tooltip-content">Select which types of content segments to automatically skip or remove using community-contributed SponsorBlock data. This helps create cleaner podcast episodes.</span>
+                        </span>
+                    </label>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="sponsor" value="sponsor">
+                            <label for="sponsor">Sponsor</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="selfpromo" value="selfpromo">
+                            <label for="selfpromo">Self Promo</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="interaction" value="interaction">
+                            <label for="interaction">Interaction</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="intro" value="intro">
+                            <label for="intro">Intro</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="outro" value="outro">
+                            <label for="outro">Outro</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="preview" value="preview">
+                            <label for="preview">Preview</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="music_offtopic" value="music_offtopic">
+                            <label for="music_offtopic">Music/Off Topic</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="filler" value="filler">
+                            <label for="filler">Filler</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeChannelModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="submitBtn">Add Channel</button>
+                </div>
+            </form>
+            
+            <!-- Danger Zone - Only visible in edit mode -->
+            <div id="dangerZone" class="danger-zone" style="display: none;">
+                <div class="danger-zone-header" onclick="toggleDangerZone()">
+                    <span class="danger-zone-title">⚠️ Danger Zone</span>
+                    <span class="danger-zone-toggle" id="dangerZoneToggle">▼</span>
+                </div>
+                <div id="dangerZoneContent" class="danger-zone-content">
+                    <p class="danger-zone-description">
+                        Destructive actions that cannot be undone. Use with caution.
+                    </p>
+                    <button type="button" class="btn-danger-zone" onclick="purgeEpisodes()">
+                        🗑️ Purge All Downloaded Episodes
+                    </button>
+                    <div class="danger-zone-help">
+                        This will permanently delete all downloaded video files for this channel. The RSS feed will be generated dynamically from remaining files.
+                    </div>
+                    <br><hr /><br>
+                    <button type="button" class="btn-danger-zone" onclick="deleteChannelFromDangerZone()">
+                        ❌ Delete Channel Completely
+                    </button>
+                    <div class="danger-zone-help">
+                        This will permanently remove the channel from your configuration and delete all associated files. This action cannot be undone.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Scheduler Settings Modal -->
+    <div id="scheduleModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Automatic Refresh Schedule</h2>
+                <button class="close" onclick="closeScheduleModal()">&times;</button>
+            </div>
+            
+            <form id="scheduleForm">
+                <div class="form-group">
+                    <label class="form-label" for="refreshInterval">Refresh Interval (hours) *</label>
+                    <input type="number" id="refreshInterval" class="form-input" 
+                           placeholder="24" min="1" max="168" step="1" required>
+                    <div class="form-help">How often to automatically refresh all channels (1-168 hours)</div>
+                </div>
+                
+                <div class="schedule-info" id="scheduleInfo">
+                    <div class="info-item">
+                        <span class="info-label">Current Interval:</span>
+                        <span id="currentInterval">Loading...</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Next Scheduled Run:</span>
+                        <span id="nextRun">Loading...</span>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeScheduleModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Schedule</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
