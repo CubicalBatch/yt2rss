@@ -18,10 +18,10 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 try:
-    from .utils import setup_logging, get_video_files, sanitize_channel_name
+    from .utils import setup_logging, get_video_files, sanitize_channel_name, ensure_directory
     from .rss_generator import RSSGenerator
 except ImportError:
-    from utils import setup_logging, get_video_files, sanitize_channel_name
+    from utils import setup_logging, get_video_files, sanitize_channel_name, ensure_directory
     from rss_generator import RSSGenerator
 
 
@@ -151,6 +151,9 @@ class YouTubePodcastServer:
     
     def _save_channel_config(self, config):
         """Save channel configuration to YAML file."""
+        # Ensure config directory exists
+        ensure_directory(str(self.config_dir))
+        
         config_file = self.config_dir / "channels.yaml"
         try:
             with open(config_file, 'w') as f:
@@ -239,6 +242,7 @@ class YouTubePodcastServer:
     
     def _run_automation_script(self):
         """Run the automation script in a separate thread."""
+        process = None
         try:
             # Get the project root directory
             project_root = Path(__file__).parent.parent
@@ -248,26 +252,39 @@ class YouTubePodcastServer:
             self.refresh_status['running'] = True
             self.refresh_status['start_time'] = time.time()
             
-            # Run the cron runner directly
-            result = subprocess.run(
+            # Run the cron runner with live output streaming
+            process = subprocess.Popen(
                 ["python", str(cron_runner_script)],
                 cwd=str(project_root),
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
-                timeout=3600  # 1 hour timeout
+                bufsize=1,
+                universal_newlines=True
             )
+            
+            # Stream output line by line
+            if process.stdout:
+                for line in iter(process.stdout.readline, ''):
+                    if line:
+                        # Remove trailing newline and log through webserver logger
+                        self.logger.info(f"[CRON] {line.rstrip()}")
+            
+            # Wait for process to complete
+            return_code = process.wait(timeout=3600)  # 1 hour timeout
             
             self.refresh_status['running'] = False
             self.refresh_status['duration'] = time.time() - self.refresh_status['start_time']
             
-            if result.returncode == 0:
+            if return_code == 0:
                 self.logger.info("Cron runner completed successfully")
             else:
-                self.logger.error(f"Cron runner failed with return code {result.returncode}")
-                self.logger.error(f"Error output: {result.stderr}")
+                self.logger.error(f"Cron runner failed with return code {return_code}")
                 
         except subprocess.TimeoutExpired:
             self.logger.error("Cron runner timed out")
+            if process:
+                process.kill()
             self.refresh_status['running'] = False
             self.refresh_status['duration'] = time.time() - self.refresh_status['start_time']
         except Exception as e:
