@@ -31,7 +31,7 @@ def temp_directory():
 @pytest.fixture
 def mock_logging():
     """Mock the logging setup to avoid file creation during tests."""
-    with patch('src.web_server.setup_logging') as mock_log:
+    with patch("src.web_server.setup_logging") as mock_log:
         mock_log.return_value.info = lambda x: None
         mock_log.return_value.error = lambda x: None
         mock_log.return_value.warning = lambda x: None
@@ -41,5 +41,5 @@ def mock_logging():
 @pytest.fixture
 def mock_atexit():
     """Mock atexit.register to avoid cleanup issues during tests."""
-    with patch('atexit.register') as mock_exit:
+    with patch("atexit.register") as mock_exit:
         yield mock_exit

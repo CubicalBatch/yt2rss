@@ -7,6 +7,7 @@ from pathlib import Path
 # Add src to path and run from project root
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 import os
+
 os.chdir(Path(__file__).parent)
 
 from web_server import YouTubePodcastServer
