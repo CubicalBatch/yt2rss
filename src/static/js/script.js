@@ -643,6 +643,78 @@ function adjustTooltipPositions() {
     });
 }
 
+// Single channel refresh function
+async function refreshSingleChannel(channelName, button) {
+    const originalText = button.innerHTML;
+    
+    try {
+        // Update button to show loading state
+        button.disabled = true;
+        button.classList.add('refreshing');
+        
+        const response = await fetch(`/api/channels/${channelName}/refresh`, {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            showToast(`✅ Refresh started for ${channelName}`);
+            
+            // Start monitoring single channel refresh completion
+            const startTime = Date.now();
+            const monitorInterval = setInterval(async () => {
+                try {
+                    const statusResponse = await fetch('/api/refresh/status');
+                    const status = await statusResponse.json();
+                    
+                    // Check if refresh has completed
+                    if (!status.running) {
+                        clearInterval(monitorInterval);
+                        button.disabled = false;
+                        button.classList.remove('refreshing');
+                        showToast(`✅ ${channelName} refresh completed!`);
+                        
+                        // Reload page after 2 seconds to show updated data
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 2000);
+                    } else {
+                        // Show periodic updates via global notifications
+                        const duration = Math.floor((Date.now() - startTime) / 1000);
+                        if (duration % 30 === 0 && duration > 0) { // Every 30 seconds
+                            showToast(`⏳ ${channelName} still refreshing (${duration}s)...`);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error checking refresh status:', error);
+                    // Continue monitoring despite error
+                }
+            }, 1000); // Check every second
+            
+            // Safety timeout to reset button after 10 minutes
+            setTimeout(() => {
+                clearInterval(monitorInterval);
+                if (button.disabled) {
+                    button.disabled = false;
+                    button.classList.remove('refreshing');
+                    showToast(`⚠️ ${channelName} refresh monitoring timed out`);
+                }
+            }, 600000); // 10 minutes
+            
+        } else {
+            showToast(`❌ ${result.error || 'Failed to start refresh for ' + channelName}`);
+            button.disabled = false;
+            button.classList.remove('refreshing');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showToast(`❌ Network error occurred while refreshing ${channelName}`);
+        button.disabled = false;
+        button.classList.remove('refreshing');
+    }
+}
+
 // Check refresh status on page load
 document.addEventListener('DOMContentLoaded', function() {
     checkRefreshStatus();

@@ -308,6 +308,42 @@ body {
     box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
 }
 
+.refresh-channel-btn-card {
+    background: linear-gradient(135deg, #333333 0%, #1a1a1a 100%);
+    color: #e0e0e0;
+    border: none;
+    padding: 8px;
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.refresh-channel-btn-card:hover {
+    background: linear-gradient(135deg, #555555 0%, #333333 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+}
+
+.refresh-channel-btn-card:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+.refresh-channel-btn-card.refreshing {
+    background: linear-gradient(135deg, #444444 0%, #222222 100%);
+    color: #ff9f00;
+    box-shadow: 0 0 10px rgba(255, 159, 0, 0.4);
+}
+
 .modal {
     display: none;
     position: fixed;
@@ -333,6 +369,10 @@ body {
     position: relative;
     border: 1px solid rgba(0, 255, 255, 0.2);
     color: #e0e0e0;
+}
+
+.episodes-modal-content .modal-header {
+    flex-shrink: 0;
 }
 
 .modal-header {
@@ -477,6 +517,7 @@ select.form-input option {
 .status-container {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 8px;
     margin-bottom: 12px;
     flex-wrap: wrap;
@@ -834,14 +875,17 @@ select.form-input option {
 /* Episodes Modal Styles */
 .episodes-modal-content {
     max-width: 700px;
-    max-height: 95vh;
-    height: auto;
-    margin: 2.5vh auto;
+    height: 90vh;
+    margin: 5vh auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .episodes-content {
-    max-height: 85vh;
+    flex: 1;
     overflow-y: auto;
+    padding-right: 8px;
 }
 
 .episodes-loading {
@@ -973,12 +1017,8 @@ select.form-input option {
     
     .episodes-modal-content {
         max-width: 95%;
-        max-height: 95vh;
+        height: 95vh;
         margin: 2.5vh auto;
-    }
-    
-    .episodes-content {
-        max-height: 85vh;
     }
     
     .episode-header {

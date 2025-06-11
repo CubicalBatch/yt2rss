@@ -16,6 +16,7 @@ from flask import Flask, Response, request, send_file, render_template, abort, j
 from werkzeug.utils import secure_filename
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.executors.pool import ThreadPoolExecutor
 
 try:
     from .utils import (
@@ -55,8 +56,11 @@ class YouTubePodcastServer:
         # Refresh state tracking
         self.refresh_status = {"running": False, "start_time": None, "duration": 0}
 
-        # Initialize scheduler
-        self.scheduler = BackgroundScheduler()
+        # Initialize scheduler with single thread executor
+        executors = {
+            "default": ThreadPoolExecutor(1)  # Only one thread for sequential execution
+        }
+        self.scheduler = BackgroundScheduler(executors=executors)
         self.scheduler.start()
         atexit.register(lambda: self.scheduler.shutdown())
 
@@ -65,6 +69,7 @@ class YouTubePodcastServer:
 
         # Initialize Flask app with templates and static folders
         self.app = Flask(__name__, template_folder="templates", static_folder="static")
+        self._setup_custom_filters()
         self._setup_routes()
 
         # Enable MIME type for MP4 files
@@ -95,65 +100,84 @@ class YouTubePodcastServer:
         """Load channel configuration from YAML file."""
         config_file = self.config_dir / "channels.yaml"
         if not config_file.exists():
-            return {"channels": [], "refresh_interval_hours": 24}
+            return {"channels": [], "default_interval_hours": 24}
 
         try:
             with open(config_file, "r") as f:
                 config = yaml.safe_load(f)
+                # Handle backwards compatibility: rename refresh_interval_hours to default_interval_hours
+                if (
+                    "refresh_interval_hours" in config
+                    and "default_interval_hours" not in config
+                ):
+                    config["default_interval_hours"] = config["refresh_interval_hours"]
+                    del config["refresh_interval_hours"]
                 # Ensure defaults
                 if "channels" not in config:
                     config["channels"] = []
-                if "refresh_interval_hours" not in config:
-                    config["refresh_interval_hours"] = 24
+                if "default_interval_hours" not in config:
+                    config["default_interval_hours"] = 24
                 return config
         except Exception as e:
             self.logger.error(f"Error loading config: {e}")
-            return {"channels": [], "refresh_interval_hours": 24}
+            return {"channels": [], "default_interval_hours": 24}
 
     def _setup_scheduler(self):
-        """Setup automatic refresh scheduler based on config."""
+        """Setup per-channel automatic refresh scheduler based on config."""
         try:
             config = self._load_channel_config()
-            interval_hours = config.get("refresh_interval_hours", 24)
+            channels = config.get("channels", [])
+            default_interval = config.get("default_interval_hours", 24)
 
-            # Remove existing job if any
-            if self.scheduler.get_job("auto_refresh"):
-                self.scheduler.remove_job("auto_refresh")
+            # Remove all existing channel jobs
+            for job in self.scheduler.get_jobs():
+                if job.id.startswith("channel_refresh_"):
+                    self.scheduler.remove_job(job.id)
 
-            # Add new job
-            self.scheduler.add_job(
-                func=self._run_automation_script,
-                trigger=IntervalTrigger(hours=interval_hours),
-                id="auto_refresh",
-                name="Automatic Refresh",
-                replace_existing=True,
-            )
+            # Add per-channel jobs
+            for channel in channels:
+                channel_name = channel.get("name")
+                if not channel_name:
+                    continue
 
-            self.logger.info(
-                f"Scheduled automatic refresh every {interval_hours} hours"
-            )
+                # Get channel-specific interval or use default
+                interval_hours = channel.get("refresh_interval_hours", default_interval)
+
+                job_id = f"channel_refresh_{channel_name}"
+
+                # Add job for this channel
+                self.scheduler.add_job(
+                    func=self._run_single_channel_refresh,
+                    args=[channel_name],
+                    trigger=IntervalTrigger(hours=interval_hours),
+                    id=job_id,
+                    name=f"Auto Refresh: {channel.get('display_name', channel_name)}",
+                    replace_existing=True,
+                )
+
+                self.logger.info(
+                    f"Scheduled refresh for '{channel_name}' every {interval_hours} hours"
+                )
 
         except Exception as e:
             self.logger.error(f"Error setting up scheduler: {e}")
 
-    def _restart_scheduler(self, new_interval_hours: int):
-        """Restart scheduler with new interval."""
+    def _restart_scheduler(self, new_default_interval_hours: int):
+        """Restart scheduler with new default interval."""
         try:
-            # Remove existing job
-            if self.scheduler.get_job("auto_refresh"):
-                self.scheduler.remove_job("auto_refresh")
+            # Update config with new default interval
+            config = self._load_channel_config()
+            config["default_interval_hours"] = new_default_interval_hours
 
-            # Add job with new interval
-            self.scheduler.add_job(
-                func=self._run_automation_script,
-                trigger=IntervalTrigger(hours=new_interval_hours),
-                id="auto_refresh",
-                name="Automatic Refresh",
-                replace_existing=True,
-            )
+            # Save config first
+            if not self._save_channel_config(config):
+                return False
+
+            # Restart all channel schedules
+            self._setup_scheduler()
 
             self.logger.info(
-                f"Rescheduled automatic refresh to every {new_interval_hours} hours"
+                f"Rescheduled all channels with new default interval: {new_default_interval_hours} hours"
             )
             return True
 
@@ -174,6 +198,29 @@ class YouTubePodcastServer:
         except Exception as e:
             self.logger.error(f"Error saving config: {e}")
             return False
+
+    def _setup_custom_filters(self):
+        """Setup custom Jinja2 filters."""
+
+        def format_youtube_url(url: str) -> str:
+            """Replace YouTube URL display with YouTube logo emoji while keeping full URL."""
+            if not url:
+                return url
+
+            # Replace common YouTube URL patterns with emoji
+            if url.startswith("https://www.youtube.com/"):
+                # Extract the part after youtube.com/
+                path_part = url.replace("https://www.youtube.com/", "")
+                return f"📺/{path_part}"
+            elif url.startswith("https://youtube.com/"):
+                # Extract the part after youtube.com/
+                path_part = url.replace("https://youtube.com/", "")
+                return f"📺/{path_part}"
+
+            return url
+
+        # Register the filter with Jinja2
+        self.app.jinja_env.filters["format_youtube_url"] = format_youtube_url
 
     def _setup_routes(self):
         """Setup Flask routes."""
@@ -249,6 +296,11 @@ class YouTubePodcastServer:
             """Get list of downloaded episodes for a channel."""
             return self._handle_get_episodes(channel_name)
 
+        @self.app.route("/api/channels/<channel_name>/refresh", methods=["POST"])
+        def refresh_single_channel(channel_name: str):
+            """Trigger refresh for a single channel."""
+            return self._handle_single_channel_refresh(channel_name)
+
         @self.app.after_request
         def after_request(response):
             """Add CORS headers for compatibility."""
@@ -258,6 +310,67 @@ class YouTubePodcastServer:
             )
             response.headers["Access-Control-Allow-Headers"] = "Range, Content-Type"
             return response
+
+    def _run_single_channel_refresh(self, channel_name: str):
+        """Run refresh for a single channel in a separate thread."""
+        try:
+            # Get the project root directory
+            project_root = Path(__file__).parent.parent
+
+            self.logger.info(f"Starting single channel refresh for: {channel_name}")
+            self.refresh_status["running"] = True
+            self.refresh_status["start_time"] = time.time()
+
+            # Import and use downloader directly
+            try:
+                from .downloader import YouTubeDownloader
+            except ImportError:
+                from downloader import YouTubeDownloader
+
+            # Load config
+            config = self._load_channel_config()
+            channels = config.get("channels", [])
+            global_config = {k: v for k, v in config.items() if k != "channels"}
+
+            # Find the specific channel
+            target_channel = None
+            for channel in channels:
+                if channel["name"] == channel_name:
+                    target_channel = channel
+                    break
+
+            if not target_channel:
+                self.logger.error(f"Channel not found: {channel_name}")
+                self.refresh_status["running"] = False
+                return
+
+            # Initialize downloader and process single channel
+            config_path = self.config_dir / "channels.yaml"
+            downloader = YouTubeDownloader(str(config_path), str(project_root))
+
+            self.logger.info(f"Processing channel: {channel_name}")
+            downloaded_count = downloader.process_channel(target_channel, global_config)
+
+            self.refresh_status["running"] = False
+            self.refresh_status["duration"] = (
+                time.time() - self.refresh_status["start_time"]
+            )
+
+            if downloaded_count >= 0:  # Success (0 or more downloads)
+                self.logger.info(
+                    f"Single channel refresh completed successfully for {channel_name}"
+                )
+            else:
+                self.logger.error(f"Single channel refresh failed for {channel_name}")
+
+        except Exception as e:
+            self.logger.error(
+                f"Error running single channel refresh for {channel_name}: {e}"
+            )
+            self.refresh_status["running"] = False
+            self.refresh_status["duration"] = (
+                time.time() - self.refresh_status["start_time"]
+            )
 
     def _run_automation_script(self):
         """Run the automation script in a separate thread."""
@@ -357,16 +470,29 @@ class YouTubePodcastServer:
         """Handle get refresh interval request."""
         try:
             config = self._load_channel_config()
-            interval_hours = config.get("refresh_interval_hours", 24)
+            default_interval_hours = config.get("default_interval_hours", 24)
 
-            # Get next scheduled run info
-            next_run = None
-            job = self.scheduler.get_job("auto_refresh")
-            if job and job.next_run_time:
-                next_run = job.next_run_time.isoformat()
+            # Get next scheduled runs for all channels
+            next_runs = []
+            for job in self.scheduler.get_jobs():
+                if job.id.startswith("channel_refresh_") and job.next_run_time:
+                    next_runs.append(
+                        {
+                            "channel": job.id.replace("channel_refresh_", ""),
+                            "next_run": job.next_run_time.isoformat(),
+                            "name": job.name,
+                        }
+                    )
+
+            # Sort by next run time
+            next_runs.sort(key=lambda x: x["next_run"])
 
             return jsonify(
-                {"refresh_interval_hours": interval_hours, "next_run": next_run}
+                {
+                    "refresh_interval_hours": default_interval_hours,
+                    "next_runs": next_runs,
+                    "next_run": next_runs[0]["next_run"] if next_runs else None,
+                }
             ), 200
 
         except Exception as e:
@@ -388,33 +514,24 @@ class YouTubePodcastServer:
                     {"error": "refresh_interval_hours must be a positive number"}
                 ), 400
 
-            # Reload config immediately before saving to ensure we have the latest state
-            config = self._load_channel_config()
-
-            # Update interval
-            config["refresh_interval_hours"] = new_interval
-
-            # Save config
-            if not self._save_channel_config(config):
-                return jsonify({"error": "Failed to save configuration"}), 500
-
-            # Restart scheduler with new interval
+            # Restart scheduler with new default interval
             if not self._restart_scheduler(int(new_interval)):
                 return jsonify({"error": "Failed to restart scheduler"}), 500
 
-            # Get next scheduled run info
-            next_run = None
-            job = self.scheduler.get_job("auto_refresh")
-            if job and job.next_run_time:
-                next_run = job.next_run_time.isoformat()
-
-            return jsonify(
-                {
-                    "message": "Refresh interval updated successfully",
-                    "refresh_interval_hours": new_interval,
-                    "next_run": next_run,
-                }
-            ), 200
+            # Get updated schedule info
+            interval_data = self._handle_get_refresh_interval()
+            if interval_data[1] == 200:  # Success
+                response_data = interval_data[0].get_json()
+                return jsonify(
+                    {
+                        "message": "Default refresh interval updated successfully",
+                        "refresh_interval_hours": new_interval,
+                        "next_run": response_data.get("next_run"),
+                        "next_runs": response_data.get("next_runs", []),
+                    }
+                ), 200
+            else:
+                return jsonify({"error": "Failed to get updated schedule info"}), 500
 
         except Exception as e:
             self.logger.error(f"Error updating refresh interval: {e}")
@@ -591,6 +708,9 @@ class YouTubePodcastServer:
 
             # Save config
             if self._save_channel_config(config):
+                # Restart scheduler to include new channel
+                self._setup_scheduler()
+
                 response_data = {
                     "message": "Channel added successfully",
                     "channel": new_channel,
@@ -717,6 +837,9 @@ class YouTubePodcastServer:
 
             # Save config
             if self._save_channel_config(config):
+                # Restart scheduler to update channel schedules
+                self._setup_scheduler()
+
                 response_data = {
                     "message": "Channel updated successfully",
                     "channel": channel,
@@ -751,6 +874,9 @@ class YouTubePodcastServer:
 
             # Save config
             if self._save_channel_config(config):
+                # Restart scheduler to remove deleted channel's job
+                self._setup_scheduler()
+
                 return jsonify({"message": "Channel deleted successfully"}), 200
             else:
                 return jsonify({"error": "Failed to save configuration"}), 500
@@ -911,6 +1037,35 @@ class YouTubePodcastServer:
         except Exception as e:
             self.logger.error(f"Error getting episodes for channel {channel_name}: {e}")
             return jsonify({"error": "Internal server error"}), 500
+
+    def _handle_single_channel_refresh(self, channel_name: str):
+        """Handle single channel refresh request."""
+        try:
+            if self.refresh_status["running"]:
+                return jsonify({"error": "Refresh already in progress"}), 409
+
+            # Validate channel exists
+            config = self._load_channel_config()
+            channels = config.get("channels", [])
+            channel_exists = any(ch["name"] == channel_name for ch in channels)
+
+            if not channel_exists:
+                return jsonify({"error": "Channel not found"}), 404
+
+            # Start the single channel refresh in a background thread
+            thread = threading.Thread(
+                target=self._run_single_channel_refresh, args=(channel_name,)
+            )
+            thread.daemon = True
+            thread.start()
+
+            return jsonify(
+                {"message": f"Refresh started for channel '{channel_name}'"}
+            ), 200
+
+        except Exception as e:
+            self.logger.error(f"Error triggering single channel refresh: {e}")
+            return jsonify({"error": "Failed to start channel refresh"}), 500
 
     def _serve_index(self) -> str:
         """Generate and serve modern index page."""
@@ -1115,12 +1270,20 @@ class YouTubePodcastServer:
 
         # Log scheduler status
         config = self._load_channel_config()
-        interval_hours = config.get("refresh_interval_hours", 24)
-        job = self.scheduler.get_job("auto_refresh")
-        if job and job.next_run_time:
+        default_interval_hours = config.get("default_interval_hours", 24)
+        channel_jobs = [
+            job
+            for job in self.scheduler.get_jobs()
+            if job.id.startswith("channel_refresh_")
+        ]
+        if channel_jobs:
             self.logger.info(
-                f"Automatic refresh scheduled every {interval_hours} hours, next run: {job.next_run_time}"
+                f"Per-channel refresh scheduled (default: {default_interval_hours}h), {len(channel_jobs)} channels configured"
             )
+            for job in channel_jobs[:3]:  # Show first 3 jobs
+                self.logger.info(f"  - {job.name}: next run {job.next_run_time}")
+            if len(channel_jobs) > 3:
+                self.logger.info(f"  ... and {len(channel_jobs) - 3} more channels")
 
         self.app.run(host=self.host, port=self.port, debug=debug)
 
