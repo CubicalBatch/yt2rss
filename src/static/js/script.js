@@ -402,7 +402,7 @@ async function openEpisodesModal(channelName, displayName) {
             if (data.episodes && data.episodes.length > 0) {
                 // Display episodes
                 const episodesHtml = data.episodes.map(episode => `
-                    <div class="episode-item">
+                    <div class="episode-item" onclick="openEpisodeMedia('${channelName}', '${episode.id}', '${episode.file_extension || '.mp4'}')">
                         <div class="episode-header">
                             <h3 class="episode-title">${escapeHtml(episode.title)}</h3>
                             <div class="episode-meta">
@@ -411,6 +411,7 @@ async function openEpisodesModal(channelName, displayName) {
                             </div>
                         </div>
                         <div class="episode-description">${escapeHtml(episode.description)}</div>
+                        <div class="episode-play-hint">Click to play</div>
                     </div>
                 `).join('');
                 
@@ -453,6 +454,14 @@ async function openEpisodesModal(channelName, displayName) {
 function closeEpisodesModal() {
     const modal = document.getElementById('episodesModal');
     modal.style.display = 'none';
+}
+
+function openEpisodeMedia(channelName, episodeId, fileExtension) {
+    // Construct the media URL
+    const mediaUrl = `/podcasts/${encodeURIComponent(channelName)}/${encodeURIComponent(episodeId)}${fileExtension}`;
+    
+    // Open in new tab
+    window.open(mediaUrl, '_blank');
 }
 
 function escapeHtml(text) {

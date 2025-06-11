@@ -893,6 +893,7 @@ class YouTubePodcastServer:
                         "thumbnail": episode.get("thumbnail", ""),
                         "uploader": episode.get("uploader", ""),
                         "view_count": episode.get("view_count", 0),
+                        "file_extension": episode.get("file_extension", ".mp4"),
                     }
                 )
 

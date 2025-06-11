@@ -834,11 +834,13 @@ select.form-input option {
 /* Episodes Modal Styles */
 .episodes-modal-content {
     max-width: 700px;
-    max-height: 80vh;
+    max-height: 95vh;
+    height: auto;
+    margin: 2.5vh auto;
 }
 
 .episodes-content {
-    max-height: 60vh;
+    max-height: 85vh;
     overflow-y: auto;
 }
 
@@ -863,11 +865,20 @@ select.form-input option {
     border-radius: 12px;
     padding: 16px;
     transition: all 0.2s ease;
+    cursor: pointer;
+    position: relative;
 }
 
 .episode-item:hover {
     border-color: rgba(0, 255, 255, 0.3);
-    box-shadow: 0 4px 12px rgba(0, 255, 255, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 255, 255, 0.2);
+    transform: translateY(-2px);
+    background: linear-gradient(145deg, #4a4a4a 0%, #3f3f3f 100%);
+}
+
+.episode-item:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(0, 255, 255, 0.1);
 }
 
 .episode-header {
@@ -922,6 +933,21 @@ select.form-input option {
     opacity: 0.9;
 }
 
+.episode-play-hint {
+    color: #ff6b9d;
+    font-size: 0.8rem;
+    font-weight: 500;
+    margin-top: 8px;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    text-shadow: 0 0 3px rgba(255, 107, 157, 0.3);
+}
+
+.episode-item:hover .episode-play-hint {
+    opacity: 1;
+}
+
 .episodes-empty {
     text-align: center;
     padding: 40px 20px;
@@ -947,7 +973,12 @@ select.form-input option {
     
     .episodes-modal-content {
         max-width: 95%;
-        margin: 5% auto;
+        max-height: 95vh;
+        margin: 2.5vh auto;
+    }
+    
+    .episodes-content {
+        max-height: 85vh;
     }
     
     .episode-header {
