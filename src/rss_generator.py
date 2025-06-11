@@ -3,14 +3,14 @@ import logging
 import os
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import List, Dict
+from typing import List, Dict, Optional
 from urllib.parse import quote
 import html
 from feedgen.feed import FeedGenerator
 
 
 class RSSGenerator:
-    def __init__(self, base_url: str = None):
+    def __init__(self, base_url: Optional[str] = None):
         if base_url is None:
             base_url = os.getenv("BASE_URL", "http://localhost:5000")
         self.base_url = base_url.rstrip("/")
@@ -129,7 +129,7 @@ class RSSGenerator:
         return episodes
 
     def generate_rss_feed(
-        self, channel_name: str, videos: List[Dict], display_name: str = None
+        self, channel_name: str, videos: List[Dict], display_name: Optional[str] = None
     ) -> str:
         """Generate RSS 2.0 feed with podcast extensions"""
         fg = FeedGenerator()
@@ -152,11 +152,13 @@ class RSSGenerator:
 
         # Load podcast extension
         fg.load_extension("podcast")
-
+        
         # Set podcast-specific metadata
-        fg.podcast.itunes_explicit("no")
-        fg.podcast.itunes_author(display_title)
-        fg.podcast.itunes_summary(f"YouTube videos from {display_title}")
+        podcast_ext = getattr(fg, 'podcast', None)
+        if podcast_ext:
+            podcast_ext.itunes_explicit("no")
+            podcast_ext.itunes_author(display_title)
+            podcast_ext.itunes_summary(f"YouTube videos from {display_title}")
         # Note: Removed itunes_category and itunes_owner to match example
 
         # Add atom:link with rel="self"
@@ -213,13 +215,17 @@ class RSSGenerator:
                     thumbnail_url = f"{self.base_url}/podcasts/{quote(channel_name)}/{quote(thumbnail_path)}"
                     # Only add iTunes image for supported formats
                     if thumbnail_path.lower().endswith((".png", ".jpg", ".jpeg")):
-                        fe.podcast.itunes_image(thumbnail_url)
+                        podcast_ext = getattr(fe, 'podcast', None)
+                        if podcast_ext:
+                            podcast_ext.itunes_image(thumbnail_url)
 
             # Add podcast-specific metadata
-            fe.podcast.itunes_duration(self.format_duration(video["duration"]))
-            fe.podcast.itunes_author(
-                self.sanitize_text(video.get("uploader", "Unknown"))
-            )
+            podcast_ext = getattr(fe, 'podcast', None)
+            if podcast_ext:
+                podcast_ext.itunes_duration(self.format_duration(video["duration"]))
+                podcast_ext.itunes_author(
+                    self.sanitize_text(video.get("uploader", "Unknown"))
+                )
 
             self.logger.debug(f"Added episode: {video['title']}")
 
@@ -260,7 +266,7 @@ class RSSGenerator:
         return rss_content
 
     def generate_rss_feed_from_filesystem(
-        self, channel_name: str, videos_dir: Path, display_name: str = None
+        self, channel_name: str, videos_dir: Path, display_name: Optional[str] = None
     ) -> str:
         """Generate RSS feed content dynamically from filesystem without saving to file"""
         channel_path = videos_dir / channel_name

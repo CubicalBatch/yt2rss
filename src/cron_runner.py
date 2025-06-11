@@ -118,7 +118,7 @@ class AutomationRunner:
                 return False
 
         if not isinstance(channel["max_episodes"], int) or channel["max_episodes"] <= 0:
-            self.logger.error(f"max_episodes must be a positive integer")
+            self.logger.error("max_episodes must be a positive integer")
             return False
 
         if not channel["url"].startswith("https://www.youtube.com/"):
@@ -132,7 +132,7 @@ class AutomationRunner:
         try:
             channel_dir = self.videos_dir / channel_name
             if not channel_dir.exists():
-                self.logger.info(f"   📁 No channel directory found, skipping cleanup")
+                self.logger.info("   📁 No channel directory found, skipping cleanup")
                 return
 
             # Get all video files with their metadata
@@ -205,7 +205,7 @@ class AutomationRunner:
                     except Exception as e:
                         self.logger.error(f"     ❌ Error removing {video_id}: {e}")
             else:
-                self.logger.info(f"   ✅ No cleanup needed (within episode limit)")
+                self.logger.info("   ✅ No cleanup needed (within episode limit)")
 
         except Exception as e:
             self.logger.error(f"   ❌ Error during cleanup for {channel_name}: {e}")
@@ -222,7 +222,7 @@ class AutomationRunner:
 
         try:
             # Download new videos
-            self.logger.info(f"📥 Starting video download phase...")
+            self.logger.info("📥 Starting video download phase...")
             downloaded_count = self.downloader.process_channel(channel, global_config)
 
             if downloaded_count > 0:
@@ -230,15 +230,15 @@ class AutomationRunner:
                     f"✅ Download phase complete - {downloaded_count} new episodes downloaded"
                 )
             else:
-                self.logger.info(f"💭 No new episodes to download")
+                self.logger.info("💭 No new episodes to download")
 
             # Cleanup old videos
-            self.logger.info(f"🧹 Starting cleanup phase...")
+            self.logger.info("🧹 Starting cleanup phase...")
             self.cleanup_old_videos(channel_name, channel["max_episodes"])
-            self.logger.info(f"✅ Cleanup phase complete")
+            self.logger.info("✅ Cleanup phase complete")
 
             # RSS feeds are now generated dynamically when requested
-            self.logger.info(f"🎉 Channel processing successful!")
+            self.logger.info("🎉 Channel processing successful!")
 
             return True
 
@@ -250,25 +250,25 @@ class AutomationRunner:
         """Main automation runner method"""
         start_time = time.time()
 
-        self.logger.info(f"\n🚀 ========== YT2RSS AUTOMATION STARTING ==========\n")
+        self.logger.info("\n🚀 ========== YT2RSS AUTOMATION STARTING ==========\n")
         self.logger.info(
             f"🕰️  Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         )
 
         # Acquire lock
         if not self.acquire_lock():
-            self.logger.error(f"❌ Another instance is already running, exiting")
+            self.logger.error("❌ Another instance is already running, exiting")
             return 1
 
         try:
             # Load and validate configuration
-            self.logger.info(f"📄 Loading configuration...")
+            self.logger.info("📄 Loading configuration...")
             channels, global_config = self.load_and_validate_config()
             if not channels:
-                self.logger.error(f"❌ No valid channels to process")
+                self.logger.error("❌ No valid channels to process")
                 return 1
 
-            self.logger.info(f"✅ Configuration loaded successfully")
+            self.logger.info("✅ Configuration loaded successfully")
             self.logger.info(f"📻 Found {len(channels)} channel(s) to process\n")
 
             # Process each channel
@@ -299,16 +299,16 @@ class AutomationRunner:
             # Summary
             elapsed_time = time.time() - start_time
 
-            self.logger.info(f"\n\n🏁 ========== AUTOMATION COMPLETE ==========\n")
+            self.logger.info("\n\n🏁 ========== AUTOMATION COMPLETE ==========\n")
             self.logger.info(f"🕰️  Total time: {elapsed_time:.2f} seconds")
             self.logger.info(f"✅ Successful: {processed_count} channels")
             self.logger.info(f"❌ Errors: {error_count} channels")
 
             if error_count == 0:
-                self.logger.info(f"🎉 All channels processed successfully!")
+                self.logger.info("🎉 All channels processed successfully!")
             else:
                 self.logger.warning(
-                    f"⚠️  Some channels had errors - check logs for details"
+                    "⚠️  Some channels had errors - check logs for details"
                 )
 
             return 0 if error_count == 0 else 1

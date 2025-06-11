@@ -8,8 +8,8 @@ import json
 import atexit
 import re
 from pathlib import Path
-from typing import Optional, Tuple
-from datetime import datetime, timezone
+from typing import Optional, Tuple, List
+from datetime import datetime
 import yt_dlp
 
 from flask import Flask, Response, request, send_file, render_template, abort, jsonify
@@ -89,7 +89,7 @@ class YouTubePodcastServer:
             datetime.fromisoformat(iso_timestamp.replace("Z", "+00:00"))
             return iso_timestamp
         except (ValueError, AttributeError):
-            return None
+            return ""
 
     def _load_channel_config(self):
         """Load channel configuration from YAML file."""
@@ -394,7 +394,7 @@ class YouTubePodcastServer:
                 return jsonify({"error": "Failed to save configuration"}), 500
 
             # Restart scheduler with new interval
-            if not self._restart_scheduler(new_interval):
+            if not self._restart_scheduler(int(new_interval)):
                 return jsonify({"error": "Failed to restart scheduler"}), 500
 
             # Get next scheduled run info
@@ -418,8 +418,8 @@ class YouTubePodcastServer:
     def _validate_display_name(
         self,
         display_name: str,
-        existing_ids: list = None,
-        existing_display_names: list = None,
+        existing_ids: Optional[List[str]] = None,
+        existing_display_names: Optional[List[str]] = None,
     ) -> Tuple[bool, str, str]:
         """Validate display name and generate sanitized ID.
 
