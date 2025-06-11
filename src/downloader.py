@@ -329,8 +329,8 @@ class YouTubeDownloader:
         sponsorblock_categories = channel_config.get("sponsorblock_categories", [])
         download_delay_hours = channel_config.get("download_delay_hours", 0)
         download_delay_seconds = global_config.get(
-            "download_delay_seconds", 20
-        )  # Default 20 seconds
+            "download_delay_seconds", 60
+        )  # Default 60 seconds
         format_type = channel_config.get("format", "video")  # Default to video
         quality = channel_config.get("quality", "max")  # Default to max quality
 
