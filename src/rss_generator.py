@@ -152,9 +152,9 @@ class RSSGenerator:
 
         # Load podcast extension
         fg.load_extension("podcast")
-        
+
         # Set podcast-specific metadata
-        podcast_ext = getattr(fg, 'podcast', None)
+        podcast_ext = getattr(fg, "podcast", None)
         if podcast_ext:
             podcast_ext.itunes_explicit("no")
             podcast_ext.itunes_author(display_title)
@@ -215,12 +215,12 @@ class RSSGenerator:
                     thumbnail_url = f"{self.base_url}/podcasts/{quote(channel_name)}/{quote(thumbnail_path)}"
                     # Only add iTunes image for supported formats
                     if thumbnail_path.lower().endswith((".png", ".jpg", ".jpeg")):
-                        podcast_ext = getattr(fe, 'podcast', None)
+                        podcast_ext = getattr(fe, "podcast", None)
                         if podcast_ext:
                             podcast_ext.itunes_image(thumbnail_url)
 
             # Add podcast-specific metadata
-            podcast_ext = getattr(fe, 'podcast', None)
+            podcast_ext = getattr(fe, "podcast", None)
             if podcast_ext:
                 podcast_ext.itunes_duration(self.format_duration(video["duration"]))
                 podcast_ext.itunes_author(

@@ -244,6 +244,11 @@ class YouTubePodcastServer:
             """Purge downloaded episodes for a channel and regenerate RSS."""
             return self._handle_purge_episodes(channel_name)
 
+        @self.app.route("/api/channels/<channel_name>/episodes", methods=["GET"])
+        def get_channel_episodes(channel_name: str):
+            """Get list of downloaded episodes for a channel."""
+            return self._handle_get_episodes(channel_name)
+
         @self.app.after_request
         def after_request(response):
             """Add CORS headers for compatibility."""
@@ -813,6 +818,97 @@ class YouTubePodcastServer:
 
         except Exception as e:
             self.logger.error(f"Error purging episodes for channel {channel_name}: {e}")
+            return jsonify({"error": "Internal server error"}), 500
+
+    def _handle_get_episodes(self, channel_name: str):
+        """Handle getting episodes for a channel."""
+        try:
+            # Validate channel exists in config
+            config = self._load_channel_config()
+            channels = config.get("channels", [])
+            channel_config = None
+            for ch in channels:
+                if ch["name"] == channel_name:
+                    channel_config = ch
+                    break
+
+            if not channel_config:
+                return jsonify({"error": "Channel not found"}), 404
+
+            # Load episode data using RSS generator's method
+            try:
+                from .rss_generator import RSSGenerator
+            except ImportError:
+                from rss_generator import RSSGenerator
+
+            base_url = os.getenv("BASE_URL", request.host_url.rstrip("/"))
+            rss_generator = RSSGenerator(base_url)
+
+            channel_path = self.videos_dir / channel_name
+            episodes_data = rss_generator.scan_channel_videos(channel_path)
+
+            # Format episodes for the frontend
+            episodes = []
+            for episode in episodes_data:
+                # Convert duration to a readable format
+                duration = episode.get("duration", 0)
+                if isinstance(duration, (int, float)):
+                    hours = int(duration // 3600)
+                    minutes = int((duration % 3600) // 60)
+                    seconds = int(duration % 60)
+                    if hours > 0:
+                        duration_str = f"{hours}:{minutes:02d}:{seconds:02d}"
+                    else:
+                        duration_str = f"{minutes}:{seconds:02d}"
+                else:
+                    duration_str = str(duration) if duration else "0:00"
+
+                # Format upload date
+                upload_date = episode.get("upload_date", "")
+                if upload_date:
+                    try:
+                        # Parse upload_date (usually in YYYYMMDD format)
+                        if len(upload_date) == 8:
+                            date_obj = datetime.strptime(upload_date, "%Y%m%d")
+                            formatted_date = date_obj.strftime("%B %d, %Y")
+                        else:
+                            formatted_date = upload_date
+                    except (ValueError, TypeError):
+                        formatted_date = upload_date
+                else:
+                    formatted_date = "Unknown"
+
+                # Truncate description to 150 characters
+                description = episode.get("description", "")
+                if len(description) > 150:
+                    description = description[:147] + "..."
+
+                episodes.append(
+                    {
+                        "title": episode.get("title", "Unknown Title"),
+                        "duration": duration_str,
+                        "date": formatted_date,
+                        "description": description,
+                        "id": episode.get("id", ""),
+                        "thumbnail": episode.get("thumbnail", ""),
+                        "uploader": episode.get("uploader", ""),
+                        "view_count": episode.get("view_count", 0),
+                    }
+                )
+
+            # Sort episodes by upload date (newest first)
+            episodes.sort(key=lambda x: x.get("id", ""), reverse=True)
+
+            return jsonify(
+                {
+                    "channel_name": channel_config.get("display_name", channel_name),
+                    "episodes": episodes,
+                    "total_count": len(episodes),
+                }
+            ), 200
+
+        except Exception as e:
+            self.logger.error(f"Error getting episodes for channel {channel_name}: {e}")
             return jsonify({"error": "Internal server error"}), 500
 
     def _serve_index(self) -> str:

@@ -148,6 +148,18 @@ body {
     border: 1px solid rgba(0, 255, 255, 0.1);
 }
 
+.episode-count-stat {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.episode-count-stat:hover {
+    background: linear-gradient(145deg, #4a4a4a 0%, #3f3f3f 100%);
+    border-color: rgba(0, 255, 255, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 255, 255, 0.2);
+}
+
 .stat-value {
     font-size: 1.2rem;
     font-weight: 600;
@@ -204,28 +216,65 @@ body {
     text-shadow: 0 0 3px rgba(0, 255, 159, 0.3);
 }
 
-.copy-button {
+.feed-button-group {
+    display: flex;
     width: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+}
+
+.copy-button {
+    flex: 2;
     background: linear-gradient(135deg, #00ffff 0%, #ff6b9d 100%);
     color: #1a1a1a;
     border: none;
     padding: 12px 20px;
-    border-radius: 8px;
     font-size: 0.9rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
     position: relative;
     overflow: hidden;
-    box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+    border-radius: 0;
+}
+
+.open-button {
+    flex: 1;
+    background: linear-gradient(135deg, #ff6b9d 0%, #00ffff 100%);
+    color: #1a1a1a;
+    border: none;
+    border-left: 1px solid rgba(26, 26, 26, 0.2);
+    padding: 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+    border-radius: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .copy-button:hover {
+    filter: brightness(1.1);
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 255, 255, 0.6), 0 0 20px rgba(255, 107, 157, 0.4);
+    z-index: 1;
+    position: relative;
 }
 
-.copy-button:active {
+.open-button:hover {
+    filter: brightness(1.1);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 107, 157, 0.6), 0 0 20px rgba(0, 255, 255, 0.4);
+    z-index: 1;
+    position: relative;
+}
+
+.feed-button-group:active {
     transform: translateY(0);
 }
 
@@ -782,9 +831,138 @@ select.form-input option {
     transform: translateY(-4px);
 }
 
+/* Episodes Modal Styles */
+.episodes-modal-content {
+    max-width: 700px;
+    max-height: 80vh;
+}
+
+.episodes-content {
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.episodes-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: #00ffff;
+    font-size: 1.1rem;
+}
+
+.episodes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.episode-item {
+    background: linear-gradient(145deg, #3a3a3a 0%, #2f2f2f 100%);
+    border: 1px solid rgba(0, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 16px;
+    transition: all 0.2s ease;
+}
+
+.episode-item:hover {
+    border-color: rgba(0, 255, 255, 0.3);
+    box-shadow: 0 4px 12px rgba(0, 255, 255, 0.1);
+}
+
+.episode-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+    gap: 12px;
+}
+
+.episode-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #00ffff;
+    text-shadow: 0 0 3px rgba(0, 255, 255, 0.3);
+    line-height: 1.4;
+    flex: 1;
+    margin: 0;
+}
+
+.episode-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.episode-duration {
+    background: linear-gradient(145deg, #ff6b9d 0%, #00ffff 100%);
+    color: #1a1a1a;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    box-shadow: 0 0 5px rgba(255, 107, 157, 0.3);
+}
+
+.episode-date {
+    color: #ff9f00;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-shadow: 0 0 2px rgba(255, 159, 0, 0.3);
+}
+
+.episode-description {
+    color: #e0e0e0;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    margin-top: 8px;
+    opacity: 0.9;
+}
+
+.episodes-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: #888;
+}
+
+.episodes-empty h3 {
+    font-size: 1.2rem;
+    margin-bottom: 8px;
+    color: #ff6b9d;
+}
+
+.episodes-empty p {
+    font-size: 0.9rem;
+    opacity: 0.8;
+}
+
 @media (max-width: 768px) {
     .tooltip-content {
         width: 220px;
         font-size: 0.75rem;
+    }
+    
+    .episodes-modal-content {
+        max-width: 95%;
+        margin: 5% auto;
+    }
+    
+    .episode-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .episode-meta {
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .episode-title {
+        font-size: 0.95rem;
     }
 }

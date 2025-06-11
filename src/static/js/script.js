@@ -2,6 +2,11 @@ let currentChannelName = null;
 let isEditMode = false;
 let refreshInterval = null;
 
+// Open feed URL in new tab
+function openFeedUrl(url) {
+    window.open(url, '_blank');
+}
+
 // Copy feed URL functionality
 async function copyFeedUrl(url, button) {
     try {
@@ -370,15 +375,104 @@ function formatDateTime(isoString) {
 document.getElementById('channelForm').addEventListener('submit', handleSubmit);
 document.getElementById('scheduleForm').addEventListener('submit', handleScheduleSubmit);
 
+// Episodes Modal Functions
+async function openEpisodesModal(channelName, displayName) {
+    try {
+        const modal = document.getElementById('episodesModal');
+        const titleElement = document.getElementById('episodesModalTitle');
+        const contentElement = document.getElementById('episodesContent');
+        
+        // Set title and show modal
+        titleElement.textContent = `${displayName} - Episodes`;
+        modal.style.display = 'block';
+        
+        // Show loading state
+        contentElement.innerHTML = `
+            <div class="episodes-loading">
+                <div class="spinner"></div>
+                Loading episodes...
+            </div>
+        `;
+        
+        // Fetch episodes data
+        const response = await fetch(`/api/channels/${channelName}/episodes`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            if (data.episodes && data.episodes.length > 0) {
+                // Display episodes
+                const episodesHtml = data.episodes.map(episode => `
+                    <div class="episode-item">
+                        <div class="episode-header">
+                            <h3 class="episode-title">${escapeHtml(episode.title)}</h3>
+                            <div class="episode-meta">
+                                <div class="episode-duration">${episode.duration}</div>
+                                <div class="episode-date">${episode.date}</div>
+                            </div>
+                        </div>
+                        <div class="episode-description">${escapeHtml(episode.description)}</div>
+                    </div>
+                `).join('');
+                
+                contentElement.innerHTML = `
+                    <div class="episodes-list">
+                        ${episodesHtml}
+                    </div>
+                `;
+            } else {
+                // No episodes found
+                contentElement.innerHTML = `
+                    <div class="episodes-empty">
+                        <h3>No Episodes Found</h3>
+                        <p>This channel doesn't have any downloaded episodes yet. Try refreshing the podcasts to download some content.</p>
+                    </div>
+                `;
+            }
+        } else {
+            // Error occurred
+            contentElement.innerHTML = `
+                <div class="episodes-empty">
+                    <h3>Error Loading Episodes</h3>
+                    <p>${escapeHtml(data.error || 'Failed to load episodes')}</p>
+                </div>
+            `;
+        }
+        
+    } catch (error) {
+        console.error('Error opening episodes modal:', error);
+        const contentElement = document.getElementById('episodesContent');
+        contentElement.innerHTML = `
+            <div class="episodes-empty">
+                <h3>Network Error</h3>
+                <p>Failed to connect to the server. Please try again.</p>
+            </div>
+        `;
+    }
+}
+
+function closeEpisodesModal() {
+    const modal = document.getElementById('episodesModal');
+    modal.style.display = 'none';
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // Close modal when clicking outside
 window.onclick = function(event) {
     const channelModal = document.getElementById('channelModal');
     const scheduleModal = document.getElementById('scheduleModal');
+    const episodesModal = document.getElementById('episodesModal');
     
     if (event.target === channelModal) {
         closeChannelModal();
     } else if (event.target === scheduleModal) {
         closeScheduleModal();
+    } else if (event.target === episodesModal) {
+        closeEpisodesModal();
     }
 }
 
@@ -387,6 +481,7 @@ document.addEventListener('keydown', function(event) {
     if (event.key === 'Escape') {
         closeChannelModal();
         closeScheduleModal();
+        closeEpisodesModal();
     }
 });
 

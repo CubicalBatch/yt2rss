@@ -51,7 +51,7 @@
                 </div>
                 
                 <div class="podcast-stats">
-                    <div class="stat">
+                    <div class="stat episode-count-stat" onclick="openEpisodesModal('{{ podcast.original_name }}', '{{ podcast.name }}')">
                         <span class="stat-value">{{ podcast.episode_count }}</span>
                         <span class="stat-label">Episodes</span>
                     </div>
@@ -79,9 +79,14 @@
                     {% endif %}
                 </div>
                 
-                <button class="copy-button" onclick="copyFeedUrl('{{ podcast.feed_url }}', this)">
-                    📋 Copy RSS Feed URL
-                </button>
+                <div class="feed-button-group">
+                    <button class="copy-button" onclick="copyFeedUrl('{{ podcast.feed_url }}', this)">
+                        📋 Copy Feed URL
+                    </button>
+                    <button class="open-button" onclick="openFeedUrl('{{ podcast.feed_url }}')" title="Open feed in new tab">
+                        ↗️ Open
+                    </button>
+                </div>
             </div>
             {% endfor %}
         </div>
@@ -290,6 +295,23 @@
                     <button type="submit" class="btn btn-primary">Save Schedule</button>
                 </div>
             </form>
+        </div>
+    </div>
+    
+    <!-- Episodes Modal -->
+    <div id="episodesModal" class="modal">
+        <div class="modal-content episodes-modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="episodesModalTitle">Episodes</h2>
+                <button class="close" onclick="closeEpisodesModal()">&times;</button>
+            </div>
+            
+            <div id="episodesContent" class="episodes-content">
+                <div class="episodes-loading">
+                    <div class="spinner"></div>
+                    Loading episodes...
+                </div>
+            </div>
         </div>
     </div>
     

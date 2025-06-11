@@ -13,7 +13,9 @@ from rss_generator import RSSGenerator
 
 
 class YouTubeDownloader:
-    def __init__(self, config_path: str = "appdata/config/channels.yaml", base_dir: str = "."):
+    def __init__(
+        self, config_path: str = "appdata/config/channels.yaml", base_dir: str = "."
+    ):
         self.config_path = config_path
         self.base_dir = Path(base_dir)
         self.videos_dir = self.base_dir / "appdata" / "podcasts"
@@ -23,7 +25,9 @@ class YouTubeDownloader:
 
         # Setup logging
         logging.basicConfig(
-            level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", handlers=[logging.StreamHandler()]
+            level=logging.INFO,
+            format="%(asctime)s - %(levelname)s - %(message)s",
+            handlers=[logging.StreamHandler()],
         )
         self.logger = logging.getLogger(__name__)
 
@@ -42,9 +46,13 @@ class YouTubeDownloader:
             self.logger.error(f"Failed to load config: {e}")
             return [], {}
 
-    def get_channel_videos(self, channel_url: str, max_episodes: int = 10) -> List[Dict[str, Any]]:
+    def get_channel_videos(
+        self, channel_url: str, max_episodes: int = 10
+    ) -> List[Dict[str, Any]]:
         """Get video information from a YouTube channel."""
-        self.logger.info(f"📡 Fetching video list from channel (max {max_episodes} episodes)...")
+        self.logger.info(
+            f"📡 Fetching video list from channel (max {max_episodes} episodes)..."
+        )
 
         ydl_opts = {
             "quiet": True,
@@ -58,7 +66,9 @@ class YouTubeDownloader:
                 info = ydl.extract_info(channel_url, download=False)
 
                 if not info or "entries" not in info:
-                    self.logger.warning(f"❌ No videos found for channel: {channel_url}")
+                    self.logger.warning(
+                        f"❌ No videos found for channel: {channel_url}"
+                    )
                     return []
 
                 videos = []
@@ -102,7 +112,9 @@ class YouTubeDownloader:
             self.logger.error(f"Failed to get video metadata for {video_url}: {e}")
             return {}
 
-    def video_exists(self, channel_name: str, video_id: str, format_type: str = "video") -> bool:
+    def video_exists(
+        self, channel_name: str, video_id: str, format_type: str = "video"
+    ) -> bool:
         """Check if video has already been downloaded."""
         channel_dir = self.videos_dir / channel_name
 
@@ -116,7 +128,9 @@ class YouTubeDownloader:
 
         return video_file.exists() and metadata_file.exists()
 
-    def is_video_too_new(self, video_info: Dict[str, Any], download_delay_hours: int) -> bool:
+    def is_video_too_new(
+        self, video_info: Dict[str, Any], download_delay_hours: int
+    ) -> bool:
         """Check if video is too new based on download_delay_hours."""
         if download_delay_hours <= 0:
             return False
@@ -160,7 +174,9 @@ class YouTubeDownloader:
         self.logger.info(f"   🔧 Quality: {quality}")
 
         if sponsorblock_categories:
-            self.logger.info(f"   🚫 SponsorBlock categories: {', '.join(sponsorblock_categories)}")
+            self.logger.info(
+                f"   🚫 SponsorBlock categories: {', '.join(sponsorblock_categories)}"
+            )
 
         # Create channel directory
         channel_dir = self.videos_dir / channel_name
@@ -177,10 +193,14 @@ class YouTubeDownloader:
         else:  # video
             if quality == "480p":
                 format_string = "best[height<=480][ext=mp4]/best[ext=mp4]/best"
-                self.logger.info(f"   📹 Video format selected: 480p (format: {format_string})")
+                self.logger.info(
+                    f"   📹 Video format selected: 480p (format: {format_string})"
+                )
             else:  # max quality
                 format_string = "best[ext=mp4]/best"
-                self.logger.info(f"   📹 Video format selected: max quality (format: {format_string})")
+                self.logger.info(
+                    f"   📹 Video format selected: max quality (format: {format_string})"
+                )
 
         # Configure yt-dlp options
         ydl_opts = {
@@ -226,16 +246,22 @@ class YouTubeDownloader:
                         # Convert WebP to JPG for iTunes compatibility
                         jpg_path = thumbnails_dir / f"{video_id}.jpg"
                         try:
-                            self.logger.info("   🖼️  Converting WebP thumbnail to JPG...")
+                            self.logger.info(
+                                "   🖼️  Converting WebP thumbnail to JPG..."
+                            )
                             with Image.open(thumbnail_path) as img:
                                 # Convert to RGB if necessary (WebP can have transparency)
                                 if img.mode in ("RGBA", "LA", "P"):
-                                    rgb_img = Image.new("RGB", img.size, (255, 255, 255))
+                                    rgb_img = Image.new(
+                                        "RGB", img.size, (255, 255, 255)
+                                    )
                                     if img.mode == "P":
                                         img = img.convert("RGBA")
                                     rgb_img.paste(
                                         img,
-                                        mask=img.split()[-1] if img.mode in ("RGBA", "LA") else None,
+                                        mask=img.split()[-1]
+                                        if img.mode in ("RGBA", "LA")
+                                        else None,
                                     )
                                     img = rgb_img
                                 img.save(jpg_path, "JPEG", quality=90)
@@ -243,7 +269,9 @@ class YouTubeDownloader:
                             final_thumbnail_ext = ".jpg"
                             self.logger.info("   ✅ Thumbnail converted to JPG")
                         except Exception as e:
-                            self.logger.error(f"Failed to convert WebP thumbnail for {video_id}: {e}")
+                            self.logger.error(
+                                f"Failed to convert WebP thumbnail for {video_id}: {e}"
+                            )
                             # Fallback: move WebP as-is
                             new_thumbnail_path = thumbnails_dir / f"{video_id}{ext}"
                             thumbnail_path.rename(new_thumbnail_path)
@@ -268,7 +296,9 @@ class YouTubeDownloader:
                     "description": metadata.get("description", ""),
                     "upload_date": metadata.get("upload_date"),
                     "duration": metadata.get("duration"),
-                    "thumbnail": f"thumbnails/{video_id}{final_thumbnail_ext}" if final_thumbnail_ext else None,
+                    "thumbnail": f"thumbnails/{video_id}{final_thumbnail_ext}"
+                    if final_thumbnail_ext
+                    else None,
                     "file_size": metadata.get("filesize", 0),
                     "uploader": metadata.get("uploader"),
                     "view_count": metadata.get("view_count", 0),
@@ -289,14 +319,18 @@ class YouTubeDownloader:
             self.logger.error(f"❌ Failed to download: {video_title} - {e}")
             return False
 
-    def process_channel(self, channel_config: Dict[str, Any], global_config: Dict[str, Any]) -> int:
+    def process_channel(
+        self, channel_config: Dict[str, Any], global_config: Dict[str, Any]
+    ) -> int:
         """Process a single channel configuration."""
         channel_name = channel_config["name"]
         channel_url = channel_config["url"]
         max_episodes = channel_config.get("max_episodes", 10)
         sponsorblock_categories = channel_config.get("sponsorblock_categories", [])
         download_delay_hours = channel_config.get("download_delay_hours", 0)
-        download_delay_seconds = global_config.get("download_delay_seconds", 20)  # Default 20 seconds
+        download_delay_seconds = global_config.get(
+            "download_delay_seconds", 20
+        )  # Default 20 seconds
         format_type = channel_config.get("format", "video")  # Default to video
         quality = channel_config.get("quality", "max")  # Default to max quality
 
@@ -305,9 +339,13 @@ class YouTubeDownloader:
         self.logger.info(f"   📊 Max episodes: {max_episodes}")
         self.logger.info(f"   🎯 Format: {format_type}")
         self.logger.info(f"   🔧 Quality: {quality}")
-        self.logger.info(f"   ⏰ Download delay: {download_delay_seconds}s between episodes")
+        self.logger.info(
+            f"   ⏰ Download delay: {download_delay_seconds}s between episodes"
+        )
         if download_delay_hours > 0:
-            self.logger.info(f"   ⌛ Skip videos newer than: {download_delay_hours} hours")
+            self.logger.info(
+                f"   ⌛ Skip videos newer than: {download_delay_hours} hours"
+            )
 
         # Get video list
         videos = self.get_channel_videos(channel_url, max_episodes)
@@ -342,17 +380,23 @@ class YouTubeDownloader:
 
             # Check if video is too new
             if self.is_video_too_new(video, download_delay_hours):
-                self.logger.info(f"   ⌛ Video too new (< {download_delay_hours}h old), skipping for SponsorBlock data")
+                self.logger.info(
+                    f"   ⌛ Video too new (< {download_delay_hours}h old), skipping for SponsorBlock data"
+                )
                 continue
 
             # Download the video
             self.logger.info("   ▶️  Starting download...")
-            if self.download_video(video, channel_name, sponsorblock_categories, format_type, quality):
+            if self.download_video(
+                video, channel_name, sponsorblock_categories, format_type, quality
+            ):
                 downloaded_count += 1
 
                 # Add delay between downloads to avoid rate limiting
                 if download_delay_seconds > 0 and i < len(videos):
-                    self.logger.info(f"   ⏸️  Waiting {download_delay_seconds}s before next download...")
+                    self.logger.info(
+                        f"   ⏸️  Waiting {download_delay_seconds}s before next download..."
+                    )
                     time.sleep(download_delay_seconds)
 
         self.logger.info("\n✨ Channel processing complete!")
@@ -377,7 +421,9 @@ class YouTubeDownloader:
                 downloaded = self.process_channel(channel_config, global_config)
                 total_downloaded += downloaded
             except Exception as e:
-                self.logger.error(f"Failed to process channel {channel_config.get('name', 'unknown')}: {e}")
+                self.logger.error(
+                    f"Failed to process channel {channel_config.get('name', 'unknown')}: {e}"
+                )
                 continue
 
         self.logger.info(f"Total videos downloaded: {total_downloaded}")
