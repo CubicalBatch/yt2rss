@@ -27,11 +27,11 @@
         
         <!-- Refresh logs display -->
         <div id="refreshLogs" class="refresh-logs" style="display: none;">
-            <div class="refresh-logs-header">
-                <h3>📊 Download Progress</h3>
-                <button class="logs-collapse" onclick="toggleLogDisplay()">−</button>
+            <div class="refresh-logs-header" onclick="toggleLogDisplay()">
+                <h3>📊 Download Progress Logs</h3>
+                <button class="logs-collapse">+</button>
             </div>
-            <div id="refreshLogContent" class="refresh-logs-content">
+            <div id="refreshLogContent" class="refresh-logs-content" style="display: none;">
                 <!-- Logs will be populated here -->
             </div>
         </div>

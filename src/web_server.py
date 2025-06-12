@@ -47,7 +47,6 @@ class UILogHandler(logging.Handler):
     def emit(self, record):
         """Emit a log record to the server's log storage."""
         try:
-            log_message = self.format(record)
             # Capture INFO level messages and above
             if record.levelno >= logging.INFO:
                 # Only add the message part, not the timestamp and level

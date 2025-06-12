@@ -9,7 +9,11 @@ import yaml
 from PIL import Image
 
 
-from .rss_generator import RSSGenerator
+# Handle both relative and absolute imports
+try:
+    from .rss_generator import RSSGenerator
+except ImportError:
+    from rss_generator import RSSGenerator
 
 
 class YouTubeDownloader:

@@ -15,7 +15,11 @@ import yaml
 # Add the src directory to Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from .downloader import YouTubeDownloader
+# Handle both relative and absolute imports
+try:
+    from .downloader import YouTubeDownloader
+except ImportError:
+    from downloader import YouTubeDownloader
 
 
 class AutomationRunner:

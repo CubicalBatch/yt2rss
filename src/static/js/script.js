@@ -406,8 +406,8 @@ async function openEpisodesModal(channelName, displayName) {
                         <div class="episode-header">
                             <h3 class="episode-title">${escapeHtml(episode.title)}</h3>
                             <div class="episode-meta">
-                                <div class="episode-duration">${episode.duration}</div>
                                 <div class="episode-date">${episode.date}</div>
+                                <div class="episode-duration">${episode.duration}</div>
                             </div>
                         </div>
                         <div class="episode-description">${escapeHtml(episode.description)}</div>
@@ -562,7 +562,7 @@ function updateLogDisplay(logs) {
         return;
     }
     
-    // Show log container and update content
+    // Show log container but keep content collapsed by default
     logContainer.style.display = 'block';
     const logContent = document.getElementById('refreshLogContent');
     
@@ -575,8 +575,10 @@ function updateLogDisplay(logs) {
     
     logContent.innerHTML = logsHtml;
     
-    // Auto-scroll to top to show latest log
-    logContent.scrollTop = 0;
+    // Auto-scroll to top to show latest log (only if expanded)
+    if (logContent.style.display !== 'none') {
+        logContent.scrollTop = 0;
+    }
 }
 
 function toggleLogDisplay() {
@@ -584,9 +586,11 @@ function toggleLogDisplay() {
     const logContent = document.getElementById('refreshLogContent');
     const toggleBtn = document.querySelector('.logs-collapse');
     
-    if (logContent.style.display === 'none') {
+    if (logContent.style.display === 'none' || logContent.style.display === '') {
         logContent.style.display = 'block';
         toggleBtn.textContent = '−';
+        // Scroll to top when opening
+        logContent.scrollTop = 0;
     } else {
         logContent.style.display = 'none';
         toggleBtn.textContent = '+';

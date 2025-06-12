@@ -953,6 +953,13 @@ select.form-input option {
 }
 
 .episode-duration {
+    color: #ff9f00;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-shadow: 0 0 2px rgba(255, 159, 0, 0.3);
+}
+
+.episode-date {
     background: linear-gradient(145deg, #ff6b9d 0%, #00ffff 100%);
     color: #1a1a1a;
     padding: 4px 8px;
@@ -960,13 +967,6 @@ select.form-input option {
     font-size: 0.8rem;
     font-weight: 600;
     box-shadow: 0 0 5px rgba(255, 107, 157, 0.3);
-}
-
-.episode-date {
-    color: #ff9f00;
-    font-size: 0.8rem;
-    font-weight: 500;
-    text-shadow: 0 0 2px rgba(255, 159, 0, 0.3);
 }
 
 .episode-description {
@@ -1056,6 +1056,12 @@ select.form-input option {
     background: rgba(0, 255, 255, 0.1);
     border-bottom: 1px solid rgba(0, 255, 255, 0.2);
     border-radius: 10px 10px 0 0;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.refresh-logs-header:hover {
+    background: rgba(0, 255, 255, 0.15);
 }
 
 .refresh-logs-header h3 {
@@ -1075,10 +1081,7 @@ select.form-input option {
     padding: 4px 8px;
     border-radius: 4px;
     transition: background-color 0.2s;
-}
-
-.logs-collapse:hover {
-    background: rgba(0, 255, 255, 0.2);
+    pointer-events: none; /* Prevent separate click handling since header handles clicks */
 }
 
 .refresh-logs-content {
