@@ -153,6 +153,9 @@ class YouTubePodcastServer:
                     id=job_id,
                     name=f"Auto Refresh: {channel.get('display_name', channel_name)}",
                     replace_existing=True,
+                    misfire_grace_time=3600,  # Allow jobs to run up to 1 hour late
+                    coalesce=True,  # Collapse multiple missed executions into one
+                    max_instances=1,  # Only one instance of each job at a time
                 )
 
                 self.logger.info(

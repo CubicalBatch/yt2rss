@@ -331,6 +331,9 @@ class YouTubeDownloader:
         download_delay_seconds = global_config.get(
             "download_delay_seconds", 60
         )  # Default 60 seconds
+        check_delay_seconds = channel_config.get(
+            "check_delay_seconds", global_config.get("check_delay_seconds", 0)
+        )  # Channel-specific or global default (0 seconds)
         format_type = channel_config.get("format", "video")  # Default to video
         quality = channel_config.get("quality", "max")  # Default to max quality
 
@@ -342,6 +345,10 @@ class YouTubeDownloader:
         self.logger.info(
             f"   ⏰ Download delay: {download_delay_seconds}s between episodes"
         )
+        if check_delay_seconds > 0:
+            self.logger.info(
+                f"   🔍 Check delay: {check_delay_seconds}s between metadata checks"
+            )
         if download_delay_hours > 0:
             self.logger.info(
                 f"   ⌛ Skip videos newer than: {download_delay_hours} hours"
@@ -357,6 +364,14 @@ class YouTubeDownloader:
         downloaded_count = 0
         self.logger.info(f"\n🔍 Checking {len(videos)} videos for download...")
 
+        def apply_check_delay():
+            """Apply check delay if configured and not on last video."""
+            if check_delay_seconds > 0 and i < len(videos):
+                self.logger.info(
+                    f"   ⏸️  Waiting {check_delay_seconds}s before next video check..."
+                )
+                time.sleep(check_delay_seconds)
+
         for i, video in enumerate(videos, 1):
             video_id = video["id"]
             video_title = video.get("title", "Unknown Title")
@@ -366,6 +381,7 @@ class YouTubeDownloader:
             # Check if already downloaded
             if self.video_exists(channel_name, video_id, format_type):
                 self.logger.info("   ⏭️  Already downloaded, skipping")
+                apply_check_delay()
                 continue
 
             # Get detailed metadata to check upload date
@@ -373,6 +389,7 @@ class YouTubeDownloader:
             detailed_metadata = self.get_video_metadata(video["url"])
             if not detailed_metadata:
                 self.logger.warning("   ❌ Failed to get metadata, skipping")
+                apply_check_delay()
                 continue
 
             # Update video info with detailed metadata
@@ -383,21 +400,28 @@ class YouTubeDownloader:
                 self.logger.info(
                     f"   ⌛ Video too new (< {download_delay_hours}h old), skipping for SponsorBlock data"
                 )
+                apply_check_delay()
                 continue
 
             # Download the video
             self.logger.info("   ▶️  Starting download...")
-            if self.download_video(
+            download_success = self.download_video(
                 video, channel_name, sponsorblock_categories, format_type, quality
-            ):
+            )
+            if download_success:
                 downloaded_count += 1
 
-                # Add delay between downloads to avoid rate limiting
-                if download_delay_seconds > 0 and i < len(videos):
+            # Add appropriate delay based on what happened
+            if i < len(videos):  # Not the last video
+                if download_success and download_delay_seconds > 0:
+                    # Longer delay after successful downloads
                     self.logger.info(
                         f"   ⏸️  Waiting {download_delay_seconds}s before next download..."
                     )
                     time.sleep(download_delay_seconds)
+                else:
+                    # Apply check delay if no download delay was used
+                    apply_check_delay()
 
         self.logger.info("\n✨ Channel processing complete!")
         self.logger.info(f"   📥 Downloaded: {downloaded_count} new episodes")
