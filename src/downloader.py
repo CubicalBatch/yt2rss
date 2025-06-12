@@ -9,7 +9,7 @@ import yaml
 from PIL import Image
 
 
-from rss_generator import RSSGenerator
+from .rss_generator import RSSGenerator
 
 
 class YouTubeDownloader:
@@ -21,7 +21,7 @@ class YouTubeDownloader:
         self.videos_dir = self.base_dir / "appdata" / "podcasts"
 
         # Ensure directories exist
-        self.videos_dir.mkdir(exist_ok=True)
+        self.videos_dir.mkdir(parents=True, exist_ok=True)
 
         # Setup logging
         logging.basicConfig(
