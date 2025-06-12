@@ -351,6 +351,13 @@ class YouTubePodcastServer:
             self.logger.info(f"Processing channel: {channel_name}")
             downloaded_count = downloader.process_channel(target_channel, global_config)
 
+            # Cleanup old episodes if max_episodes limit is exceeded
+            if downloaded_count >= 0:  # Only cleanup on successful download
+                self.logger.info(
+                    f"Cleaning up old episodes for channel: {channel_name}"
+                )
+                self._cleanup_old_episodes(channel_name, target_channel["max_episodes"])
+
             self.refresh_status["running"] = False
             self.refresh_status["duration"] = (
                 time.time() - self.refresh_status["start_time"]
@@ -371,6 +378,98 @@ class YouTubePodcastServer:
             self.refresh_status["duration"] = (
                 time.time() - self.refresh_status["start_time"]
             )
+
+    def _cleanup_old_episodes(self, channel_name: str, max_episodes: int):
+        """Remove oldest episodes exceeding the limit for a single channel."""
+        try:
+            channel_dir = self.videos_dir / channel_name
+            if not channel_dir.exists():
+                self.logger.info(
+                    f"No channel directory found for {channel_name}, skipping cleanup"
+                )
+                return
+
+            # Get all episode files with their metadata
+            episode_files = []
+            for json_file in channel_dir.glob("*.json"):
+                try:
+                    with open(json_file, "r") as f:
+                        metadata = json.load(f)
+                    video_id = metadata["id"]
+                    upload_date = metadata.get("upload_date", "19700101")
+                    episode_files.append((upload_date, video_id, json_file))
+                except Exception as e:
+                    self.logger.warning(f"Error reading metadata from {json_file}: {e}")
+                    continue
+
+            self.logger.info(
+                f"Found {len(episode_files)} episodes in channel directory for {channel_name}"
+            )
+            self.logger.info(f"Max episodes allowed: {max_episodes}")
+
+            # Sort by upload date (oldest first)
+            episode_files.sort(key=lambda x: x[0])
+
+            # Remove excess episodes
+            if len(episode_files) > max_episodes:
+                episodes_to_remove = episode_files[:-max_episodes]
+                self.logger.info(
+                    f"Need to remove {len(episodes_to_remove)} old episodes from {channel_name}"
+                )
+
+                for upload_date, video_id, json_file in episodes_to_remove:
+                    try:
+                        # Remove video and audio files
+                        removed_files = []
+
+                        # Check for various video formats
+                        for ext in [".mp4", ".webm", ".mkv", ".avi"]:
+                            video_file = channel_dir / f"{video_id}{ext}"
+                            if video_file.exists():
+                                video_file.unlink()
+                                removed_files.append("video")
+                                self.logger.info(f"Removed old video: {video_file}")
+                                break
+
+                        # Check for various audio formats
+                        for ext in [".m4a", ".mp3"]:
+                            audio_file = channel_dir / f"{video_id}{ext}"
+                            if audio_file.exists():
+                                audio_file.unlink()
+                                removed_files.append("audio")
+                                self.logger.info(f"Removed old audio: {audio_file}")
+                                break
+
+                        # Remove JSON metadata
+                        if json_file.exists():
+                            json_file.unlink()
+                            removed_files.append("metadata")
+                            self.logger.info(f"Removed metadata: {json_file}")
+
+                        # Remove thumbnail
+                        thumbnails_dir = channel_dir / "thumbnails"
+                        if thumbnails_dir.exists():
+                            thumbnail_removed = False
+                            for thumb_file in thumbnails_dir.glob(f"{video_id}.*"):
+                                thumb_file.unlink()
+                                thumbnail_removed = True
+                                self.logger.info(f"Removed thumbnail: {thumb_file}")
+                            if thumbnail_removed:
+                                removed_files.append("thumbnail")
+
+                        self.logger.info(
+                            f"Removed episode {video_id}: {', '.join(removed_files)}"
+                        )
+
+                    except Exception as e:
+                        self.logger.error(f"Error removing episode {video_id}: {e}")
+            else:
+                self.logger.info(
+                    f"No cleanup needed for {channel_name} (within episode limit)"
+                )
+
+        except Exception as e:
+            self.logger.error(f"Error during cleanup for channel {channel_name}: {e}")
 
     def _run_automation_script(self):
         """Run the automation script in a separate thread."""
@@ -1020,11 +1119,14 @@ class YouTubePodcastServer:
                         "uploader": episode.get("uploader", ""),
                         "view_count": episode.get("view_count", 0),
                         "file_extension": episode.get("file_extension", ".mp4"),
+                        "upload_date": episode.get(
+                            "upload_date", ""
+                        ),  # Keep original upload_date for sorting
                     }
                 )
 
             # Sort episodes by upload date (newest first)
-            episodes.sort(key=lambda x: x.get("id", ""), reverse=True)
+            episodes.sort(key=lambda x: x.get("upload_date", ""), reverse=True)
 
             return jsonify(
                 {
