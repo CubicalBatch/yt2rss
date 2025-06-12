@@ -25,6 +25,17 @@
             </div>
         </div>
         
+        <!-- Refresh logs display -->
+        <div id="refreshLogs" class="refresh-logs" style="display: none;">
+            <div class="refresh-logs-header">
+                <h3>📊 Download Progress</h3>
+                <button class="logs-collapse" onclick="toggleLogDisplay()">−</button>
+            </div>
+            <div id="refreshLogContent" class="refresh-logs-content">
+                <!-- Logs will be populated here -->
+            </div>
+        </div>
+        
         {% if podcasts %}
         <div class="podcasts-grid">
             {% for podcast in podcasts %}

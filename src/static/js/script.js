@@ -521,6 +521,7 @@ async function checkRefreshStatus() {
         const status = await response.json();
         
         updateRefreshButton(status);
+        updateLogDisplay(status.logs || []);
         
         if (!status.running && refreshInterval) {
             clearInterval(refreshInterval);
@@ -549,6 +550,46 @@ function updateRefreshButton(status) {
         refreshBtn.disabled = false;
         refreshBtn.classList.remove('refreshing');
         refreshBtn.innerHTML = '🔄 Refresh Podcasts';
+    }
+}
+
+function updateLogDisplay(logs) {
+    const logContainer = document.getElementById('refreshLogs');
+    if (!logContainer) return;
+    
+    if (logs.length === 0) {
+        logContainer.style.display = 'none';
+        return;
+    }
+    
+    // Show log container and update content
+    logContainer.style.display = 'block';
+    const logContent = document.getElementById('refreshLogContent');
+    
+    // Convert logs to HTML, showing most recent at top
+    const logsHtml = logs.slice(-20).reverse().map(log => {
+        const timestamp = new Date(log.timestamp).toLocaleTimeString();
+        const message = escapeHtml(log.message);
+        return `<div class="log-entry">[${timestamp}] ${message}</div>`;
+    }).join('');
+    
+    logContent.innerHTML = logsHtml;
+    
+    // Auto-scroll to top to show latest log
+    logContent.scrollTop = 0;
+}
+
+function toggleLogDisplay() {
+    const logContainer = document.getElementById('refreshLogs');
+    const logContent = document.getElementById('refreshLogContent');
+    const toggleBtn = document.querySelector('.logs-collapse');
+    
+    if (logContent.style.display === 'none') {
+        logContent.style.display = 'block';
+        toggleBtn.textContent = '−';
+    } else {
+        logContent.style.display = 'none';
+        toggleBtn.textContent = '+';
     }
 }
 
@@ -667,6 +708,9 @@ async function refreshSingleChannel(channelName, button) {
                 try {
                     const statusResponse = await fetch('/api/refresh/status');
                     const status = await statusResponse.json();
+                    
+                    // Update log display during single channel refresh
+                    updateLogDisplay(status.logs || []);
                     
                     // Check if refresh has completed
                     if (!status.running) {

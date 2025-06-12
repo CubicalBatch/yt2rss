@@ -7,6 +7,7 @@ import time
 import json
 import atexit
 import re
+import logging
 from pathlib import Path
 from typing import Optional, Tuple, List
 from datetime import datetime
@@ -36,6 +37,26 @@ except ImportError:
     from rss_generator import RSSGenerator
 
 
+class UILogHandler(logging.Handler):
+    """Custom logging handler to capture downloader logs for UI display."""
+
+    def __init__(self, server_instance):
+        super().__init__()
+        self.server = server_instance
+
+    def emit(self, record):
+        """Emit a log record to the server's log storage."""
+        try:
+            log_message = self.format(record)
+            # Capture INFO level messages and above
+            if record.levelno >= logging.INFO:
+                # Only add the message part, not the timestamp and level
+                message_only = record.getMessage()
+                self.server._add_log_message(message_only)
+        except Exception:
+            pass  # Avoid infinite recursion on logging errors
+
+
 class YouTubePodcastServer:
     """Flask-based web server for serving RSS feeds and media files."""
 
@@ -56,6 +77,10 @@ class YouTubePodcastServer:
         # Refresh state tracking
         self.refresh_status = {"running": False, "start_time": None, "duration": 0}
 
+        # Log storage for real-time display (keep last 100 messages)
+        self.recent_logs = []
+        self.max_logs = 100
+
         # Initialize scheduler with single thread executor
         executors = {
             "default": ThreadPoolExecutor(1)  # Only one thread for sequential execution
@@ -74,6 +99,25 @@ class YouTubePodcastServer:
 
         # Enable MIME type for MP4 files
         mimetypes.add_type("video/mp4", ".mp4")
+
+    def _add_log_message(self, message: str):
+        """Add a log message to the recent logs list for UI display."""
+        timestamp = datetime.now().isoformat()
+        log_entry = {
+            "timestamp": timestamp,
+            "message": message,
+        }
+
+        # Add to recent logs
+        self.recent_logs.append(log_entry)
+
+        # Keep only the most recent messages
+        if len(self.recent_logs) > self.max_logs:
+            self.recent_logs = self.recent_logs[-self.max_logs :]
+
+    def _clear_logs(self):
+        """Clear the recent logs."""
+        self.recent_logs = []
 
     def _load_refresh_timestamps(self):
         """Load refresh timestamps from file"""
@@ -316,11 +360,17 @@ class YouTubePodcastServer:
 
     def _run_single_channel_refresh(self, channel_name: str):
         """Run refresh for a single channel in a separate thread."""
+        ui_handler = None
+        downloader_logger = None
+
         try:
             # Get the project root directory
             project_root = Path(__file__).parent.parent
 
             self.logger.info(f"Starting single channel refresh for: {channel_name}")
+            self._clear_logs()  # Clear previous logs
+            self._add_log_message(f"✅ Refresh started for {channel_name}")
+
             self.refresh_status["running"] = True
             self.refresh_status["start_time"] = time.time()
 
@@ -329,6 +379,14 @@ class YouTubePodcastServer:
                 from .downloader import YouTubeDownloader
             except ImportError:
                 from downloader import YouTubeDownloader
+
+            # Set up custom log handler to capture downloader logs
+            ui_handler = UILogHandler(self)
+            ui_handler.setFormatter(logging.Formatter("%(message)s"))
+
+            # Get the downloader logger and add our handler
+            downloader_logger = logging.getLogger("downloader")
+            downloader_logger.addHandler(ui_handler)
 
             # Load config
             config = self._load_channel_config()
@@ -344,12 +402,21 @@ class YouTubePodcastServer:
 
             if not target_channel:
                 self.logger.error(f"Channel not found: {channel_name}")
+                self._add_log_message(f"❌ Channel not found: {channel_name}")
                 self.refresh_status["running"] = False
                 return
 
             # Initialize downloader and process single channel
             config_path = self.config_dir / "channels.yaml"
             downloader = YouTubeDownloader(str(config_path), str(project_root))
+
+            # Add handler to the downloader's actual logger instance
+            if hasattr(downloader, "logger"):
+                actual_logger = downloader.logger
+                actual_logger.addHandler(ui_handler)
+                self.logger.info(
+                    f"Added UI handler to downloader logger: {actual_logger.name}"
+                )
 
             self.logger.info(f"Processing channel: {channel_name}")
             downloaded_count = downloader.process_channel(target_channel, global_config)
@@ -370,17 +437,39 @@ class YouTubePodcastServer:
                 self.logger.info(
                     f"Single channel refresh completed successfully for {channel_name}"
                 )
+                self._add_log_message(f"✅ Refresh completed for {channel_name}")
             else:
                 self.logger.error(f"Single channel refresh failed for {channel_name}")
+                self._add_log_message(f"❌ Refresh failed for {channel_name}")
 
         except Exception as e:
             self.logger.error(
                 f"Error running single channel refresh for {channel_name}: {e}"
             )
-            self.refresh_status["running"] = False
-            self.refresh_status["duration"] = (
-                time.time() - self.refresh_status["start_time"]
+            self._add_log_message(
+                f"❌ Error during refresh for {channel_name}: {str(e)}"
             )
+
+            self.refresh_status["running"] = False
+            if self.refresh_status["start_time"]:
+                self.refresh_status["duration"] = (
+                    time.time() - self.refresh_status["start_time"]
+                )
+        finally:
+            # Always remove the custom log handler
+            if ui_handler:
+                try:
+                    # Remove from both the generic downloader logger and actual downloader instance
+                    if downloader_logger:
+                        downloader_logger.removeHandler(ui_handler)
+                    # Also try to remove from the actual downloader's logger if it exists
+                    try:
+                        if "downloader" in locals() and hasattr(downloader, "logger"):
+                            downloader.logger.removeHandler(ui_handler)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
 
     def _cleanup_old_episodes(self, channel_name: str, max_episodes: int):
         """Remove oldest episodes exceeding the limit for a single channel."""
@@ -502,7 +591,10 @@ class YouTubePodcastServer:
                 for line in iter(process.stdout.readline, ""):
                     if line:
                         # Remove trailing newline and log through webserver logger
-                        self.logger.info(f"[CRON] {line.rstrip()}")
+                        clean_line = line.rstrip()
+                        self.logger.info(f"[CRON] {clean_line}")
+                        # Store log for UI display
+                        self._add_log_message(clean_line)
 
             # Wait for process to complete
             return_code = process.wait(timeout=3600)  # 1 hour timeout
@@ -561,6 +653,9 @@ class YouTubePodcastServer:
                 status["duration"] = (
                     int(status["duration"]) if status["duration"] else 0
                 )
+
+            # Add recent logs to the status
+            status["logs"] = self.recent_logs.copy()
 
             return jsonify(status), 200
 
