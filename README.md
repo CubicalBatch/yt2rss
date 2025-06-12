@@ -7,8 +7,9 @@ A self-hosted solution that converts YouTube channels into podcast RSS feeds. Su
 - **🎥 Automatic Video Downloads**: Monitor YouTube channels and download new videos in 720p MP4 format
 - **🚫 SponsorBlock Integration**: Automatically remove sponsored segments, self-promotion, and other unwanted content
 - **📻 Podcast RSS Feeds**: Generate standard RSS feeds compatible with any podcast app
-- **⏰ Automated Scheduling**: Configurable refresh intervals for automatic updates
-- **🌐 Web Interface**: Modern web UI for managing channels and monitoring status
+- **⏰ Per-Channel Scheduling**: Individual refresh controls with configurable intervals for each channel
+- **🎵 Episode Playback**: Click episodes to play directly in your browser
+- **🌐 Web Interface**: Web UI with episode modals, individual channel refresh, and status monitoring
 
 ![yt2rss screenshot](yt2rss_screenshot.png)
 
@@ -43,9 +44,11 @@ docker run -d \
 The web interface provides:
 
 - **Channel Management**: Add, edit, and delete YouTube channels
+- **Episode Browser**: Click episode counts to view detailed episode modals with thumbnails and descriptions
+- **Episode Playback**: Click individual episodes to play them directly in your browser
+- **Per-Channel Refresh**: Individual refresh buttons for each channel with real-time status
 - **Status Monitoring**: View download progress and last refresh times
-- **Manual Refresh**: Trigger immediate updates
-- **Configuration**: Adjust refresh intervals and settings
+- **Configuration**: Adjust refresh intervals and settings per channel
 
 ### Podcast Apps
 
@@ -61,12 +64,14 @@ Any standard podcast app can subscribe to your feeds:
 Add new channels through the web interface or by editing `appdata/config/channels.yaml`:
 
 ```yaml
-refresh_interval_hours: 24  # Global refresh interval
+default_interval_hours: 24  # Default refresh interval for new channels
+check_delay_seconds: 30     # Delay between video metadata checks to avoid rate limiting
 channels:
   - name: example_channel
     url: https://www.youtube.com/@ExampleChannel
     max_episodes: 15
     download_delay_hours: 12
+    refresh_interval_hours: 24  # Individual channel refresh interval
     sponsorblock_categories:
       - sponsor
       - selfpromo
@@ -89,6 +94,23 @@ Available categories for automatic removal:
 - `BASE_URL`: Base URL for RSS feeds and podcast URLs (default: `http://localhost:5000`)
   - Example: `BASE_URL=https://your-domain.com`
   - Used in RSS feed URLs and media file links
+
+## Development Setup
+
+For development or manual installation, this project uses UV for dependency management:
+
+```bash
+# Install UV if not already installed
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install dependencies and run
+uv run python main.py
+```
+
+Requirements:
+- Python 3.13+
+- FFmpeg (for video processing)
+- UV package manager
 
 ## Security Notes
 
