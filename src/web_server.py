@@ -342,6 +342,14 @@ class YouTubePodcastServer:
             """Get list of downloaded episodes for a channel."""
             return self._handle_get_episodes(channel_name)
 
+        @self.app.route(
+            "/api/channels/<channel_name>/episodes/<episode_id>/download-mp3",
+            methods=["POST"],
+        )
+        def download_episode_as_mp3(channel_name: str, episode_id: str):
+            """Convert and download episode as MP3."""
+            return self._handle_mp3_download(channel_name, episode_id)
+
         @self.app.route("/api/channels/<channel_name>/refresh", methods=["POST"])
         def refresh_single_channel(channel_name: str):
             """Trigger refresh for a single channel."""
@@ -1265,6 +1273,154 @@ class YouTubePodcastServer:
         except Exception as e:
             self.logger.error(f"Error triggering single channel refresh: {e}")
             return jsonify({"error": "Failed to start channel refresh"}), 500
+
+    def _handle_mp3_download(self, channel_name: str, episode_id: str):
+        """Handle MP3 conversion and download for an episode."""
+        import tempfile
+
+        try:
+            # Sanitize inputs
+            channel_name = secure_filename(channel_name)
+            episode_id = secure_filename(episode_id)
+
+            # Validate channel exists
+            config = self._load_channel_config()
+            channels = config.get("channels", [])
+            channel_exists = any(ch["name"] == channel_name for ch in channels)
+
+            if not channel_exists:
+                return jsonify({"error": "Channel not found"}), 404
+
+            # Find the episode file
+            channel_dir = self.videos_dir / channel_name
+            if not channel_dir.exists():
+                return jsonify({"error": "No episodes found for this channel"}), 404
+
+            # Look for episode file with various extensions
+            episode_file = None
+            supported_extensions = [".mp4", ".m4a", ".mp3", ".webm", ".mkv", ".avi"]
+
+            for ext in supported_extensions:
+                candidate_file = channel_dir / f"{episode_id}{ext}"
+                if candidate_file.exists():
+                    episode_file = candidate_file
+                    break
+
+            if not episode_file:
+                return jsonify({"error": "Episode file not found"}), 404
+
+            # If already MP3 or M4A, serve directly
+            if episode_file.suffix.lower() in [".mp3", ".m4a"]:
+                file_ext = episode_file.suffix.lower()
+                if file_ext == ".mp3":
+                    mimetype = "audio/mpeg"
+                    download_name = f"{episode_id}.mp3"
+                else:  # .m4a
+                    mimetype = "audio/mp4"
+                    download_name = f"{episode_id}.m4a"
+                
+                try:
+                    return send_file(
+                        str(episode_file),
+                        mimetype=mimetype,
+                        as_attachment=True,
+                        download_name=download_name,
+                    )
+                except Exception as e:
+                    self.logger.error(f"Error serving {file_ext.upper()} file {episode_file}: {e}")
+                    return jsonify({"error": f"Failed to serve {file_ext.upper()} file"}), 500
+
+            # Convert to MP3 using FFmpeg
+            try:
+                with tempfile.NamedTemporaryFile(
+                    suffix=".mp3", delete=False
+                ) as temp_mp3:
+                    temp_mp3_path = temp_mp3.name
+
+                # Use FFmpeg to convert to MP3
+                ffmpeg_cmd = [
+                    "ffmpeg",
+                    "-i",
+                    str(episode_file),
+                    "-acodec",
+                    "mp3",
+                    "-ab",
+                    "192k",
+                    "-ar",
+                    "44100",
+                    "-y",  # Overwrite output file
+                    temp_mp3_path,
+                ]
+
+                self.logger.info(
+                    f"Converting {episode_file} to MP3: {' '.join(ffmpeg_cmd)}"
+                )
+
+                # Run FFmpeg with extended timeout for conversion
+                result = subprocess.run(
+                    ffmpeg_cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=600,  # 10 minute timeout
+                )
+
+                if result.returncode != 0:
+                    self.logger.error(f"FFmpeg conversion failed: {result.stderr}")
+                    return jsonify({"error": "Audio conversion failed"}), 500
+
+                # Verify the converted file exists and has content
+                if (
+                    not Path(temp_mp3_path).exists()
+                    or Path(temp_mp3_path).stat().st_size == 0
+                ):
+                    return jsonify({"error": "Conversion produced empty file"}), 500
+
+                try:
+                    # Send the converted file
+                    response = send_file(
+                        temp_mp3_path,
+                        mimetype="audio/mpeg",
+                        as_attachment=True,
+                        download_name=f"{episode_id}.mp3",
+                    )
+
+                    # Clean up temp file after sending
+                    def cleanup_temp_file():
+                        try:
+                            Path(temp_mp3_path).unlink(missing_ok=True)
+                        except Exception as e:
+                            self.logger.warning(
+                                f"Failed to cleanup temp file {temp_mp3_path}: {e}"
+                            )
+
+                    # Schedule cleanup after response is sent
+                    response.call_on_close(cleanup_temp_file)
+
+                    return response
+
+                except Exception as e:
+                    # Cleanup on error
+                    Path(temp_mp3_path).unlink(missing_ok=True)
+                    self.logger.error(f"Error serving converted MP3: {e}")
+                    return jsonify({"error": "Failed to serve converted file"}), 500
+
+            except subprocess.TimeoutExpired:
+                self.logger.error(f"FFmpeg conversion timeout for {episode_file}")
+                return jsonify(
+                    {"error": "Conversion timeout - file may be too large"}
+                ), 500
+            except FileNotFoundError:
+                self.logger.error("FFmpeg not found - ensure it's installed")
+                return jsonify({"error": "Audio conversion not available"}), 500
+            except Exception as e:
+                self.logger.error(f"Conversion error for {episode_file}: {e}")
+                return jsonify({"error": "Conversion failed"}), 500
+
+        except Exception as e:
+            self.logger.error(
+                f"Error in MP3 download for {channel_name}/{episode_id}: {e}"
+            )
+            return jsonify({"error": "Internal server error"}), 500
 
     def _serve_index(self) -> str:
         """Generate and serve modern index page."""

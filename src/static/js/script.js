@@ -402,16 +402,22 @@ async function openEpisodesModal(channelName, displayName) {
             if (data.episodes && data.episodes.length > 0) {
                 // Display episodes
                 const episodesHtml = data.episodes.map(episode => `
-                    <div class="episode-item" onclick="openEpisodeMedia('${channelName}', '${episode.id}', '${episode.file_extension || '.mp4'}')">
-                        <div class="episode-header">
-                            <h3 class="episode-title">${escapeHtml(episode.title)}</h3>
-                            <div class="episode-meta">
-                                <div class="episode-date">${episode.date}</div>
-                                <div class="episode-duration">${episode.duration}</div>
+                    <div class="episode-item">
+                        <div class="episode-content">
+                            <div class="episode-header">
+                                <h3 class="episode-title">${escapeHtml(episode.title)}</h3>
+                                <div class="episode-meta">
+                                    <div class="episode-date">${episode.date}</div>
+                                    <div class="episode-duration">${episode.duration}</div>
+                                </div>
                             </div>
+                            <div class="episode-description">${escapeHtml(episode.description)}</div>
                         </div>
-                        <div class="episode-description">${escapeHtml(episode.description)}</div>
-                        <div class="episode-play-hint">Click to play</div>
+                        <div class="episode-actions">
+                            <button class="play-btn" onclick="openEpisodeMedia('${channelName}', '${episode.id}', '${episode.file_extension || '.mp4'}')">▶️ Play</button>
+                            <button class="download-audio-btn" onclick="downloadAsMP3('${channelName}', '${episode.id}', '${episode.file_extension || '.mp4'}')">🎵 Download Audio</button>
+                            <button class="download-original-btn" onclick="downloadOriginalFile('${channelName}', '${episode.id}', '${episode.file_extension || '.mp4'}')">📁 Download Original</button>
+                        </div>
                     </div>
                 `).join('');
                 
@@ -462,6 +468,80 @@ function openEpisodeMedia(channelName, episodeId, fileExtension) {
     
     // Open in new tab
     window.open(mediaUrl, '_blank');
+}
+
+async function downloadAsMP3(channelName, episodeId, fileExtension) {
+    const button = event.target;
+    const originalText = button.textContent;
+    
+    try {
+        // Show loading state
+        button.textContent = '⏳ Converting...';
+        button.disabled = true;
+        
+        // Make request to conversion endpoint
+        const response = await fetch(`/api/channels/${encodeURIComponent(channelName)}/episodes/${encodeURIComponent(episodeId)}/download-mp3`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Conversion failed');
+        }
+        
+        // Create download link
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        // Get filename from Content-Disposition header or default based on original extension
+        const contentDisposition = response.headers.get('content-disposition');
+        let filename = `${episodeId}.mp3`; // default
+        if (contentDisposition) {
+            const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+            if (filenameMatch && filenameMatch[1]) {
+                filename = filenameMatch[1];
+            }
+        }
+        
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        // Show success state briefly
+        button.textContent = '✅ Downloaded!';
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.disabled = false;
+        }, 2000);
+        
+    } catch (error) {
+        console.error('Error downloading MP3:', error);
+        button.textContent = '❌ Failed';
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.disabled = false;
+        }, 3000);
+    }
+}
+
+function downloadOriginalFile(channelName, episodeId, fileExtension) {
+    // Construct the original media URL (same as play functionality)
+    const mediaUrl = `/podcasts/${encodeURIComponent(channelName)}/${encodeURIComponent(episodeId)}${fileExtension}`;
+    
+    // Create a temporary link to trigger download
+    const a = document.createElement('a');
+    a.href = mediaUrl;
+    a.download = `${episodeId}${fileExtension}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
 }
 
 function escapeHtml(text) {

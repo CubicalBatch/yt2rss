@@ -909,20 +909,114 @@ select.form-input option {
     border-radius: 12px;
     padding: 16px;
     transition: all 0.2s ease;
-    cursor: pointer;
     position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.episode-content {
+    cursor: pointer;
+    flex: 1;
+}
+
+.episode-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(0, 255, 255, 0.1);
+    flex-wrap: wrap;
+}
+
+/* Base button styles for episode actions */
+.episode-actions button {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 2px solid;
+}
+
+/* Play button */
+.play-btn {
+    background: linear-gradient(135deg, rgba(0, 255, 255, 0.2) 0%, rgba(255, 107, 157, 0.2) 100%);
+    color: #00ffff;
+    border-color: rgba(0, 255, 255, 0.4);
+    text-shadow: 0 0 3px rgba(0, 255, 255, 0.3);
+}
+
+.play-btn:hover {
+    background: linear-gradient(135deg, rgba(0, 255, 255, 0.3) 0%, rgba(255, 107, 157, 0.3) 100%);
+    border-color: rgba(0, 255, 255, 0.6);
+    box-shadow: 0 2px 8px rgba(0, 255, 255, 0.3);
+    transform: translateY(-1px);
+}
+
+/* Download Audio button */
+.download-audio-btn {
+    background: linear-gradient(135deg, rgba(255, 159, 0, 0.2) 0%, rgba(255, 107, 157, 0.2) 100%);
+    color: #ff9f00;
+    border-color: rgba(255, 159, 0, 0.4);
+    text-shadow: 0 0 3px rgba(255, 159, 0, 0.3);
+}
+
+.download-audio-btn:hover {
+    background: linear-gradient(135deg, rgba(255, 159, 0, 0.3) 0%, rgba(255, 107, 157, 0.3) 100%);
+    border-color: rgba(255, 159, 0, 0.6);
+    box-shadow: 0 2px 8px rgba(255, 159, 0, 0.3);
+    transform: translateY(-1px);
+}
+
+.download-audio-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Download Original button */
+.download-original-btn {
+    background: linear-gradient(135deg, rgba(150, 150, 150, 0.2) 0%, rgba(200, 200, 200, 0.2) 100%);
+    color: #c0c0c0;
+    border-color: rgba(150, 150, 150, 0.4);
+    text-shadow: 0 0 3px rgba(150, 150, 150, 0.3);
+}
+
+.download-original-btn:hover {
+    background: linear-gradient(135deg, rgba(150, 150, 150, 0.3) 0%, rgba(200, 200, 200, 0.3) 100%);
+    border-color: rgba(150, 150, 150, 0.6);
+    box-shadow: 0 2px 8px rgba(150, 150, 150, 0.3);
+    transform: translateY(-1px);
+}
+
+/* Responsive design for smaller screens */
+@media (max-width: 768px) {
+    .episode-actions {
+        justify-content: center;
+    }
+    
+    .episode-actions button {
+        font-size: 0.75rem;
+        padding: 5px 10px;
+    }
 }
 
 .episode-item:hover {
     border-color: rgba(0, 255, 255, 0.3);
     box-shadow: 0 4px 12px rgba(0, 255, 255, 0.2);
-    transform: translateY(-2px);
     background: linear-gradient(145deg, #4a4a4a 0%, #3f3f3f 100%);
 }
 
-.episode-item:active {
+.episode-content:hover {
+    transform: translateY(-2px);
+}
+
+.episode-content:active {
     transform: translateY(0);
-    box-shadow: 0 2px 8px rgba(0, 255, 255, 0.1);
 }
 
 .episode-header {
@@ -977,20 +1071,6 @@ select.form-input option {
     opacity: 0.9;
 }
 
-.episode-play-hint {
-    color: #ff6b9d;
-    font-size: 0.8rem;
-    font-weight: 500;
-    margin-top: 8px;
-    text-align: center;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-    text-shadow: 0 0 3px rgba(255, 107, 157, 0.3);
-}
-
-.episode-item:hover .episode-play-hint {
-    opacity: 1;
-}
 
 .episodes-empty {
     text-align: center;
