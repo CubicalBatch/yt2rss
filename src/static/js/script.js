@@ -499,14 +499,18 @@ async function downloadAsMP3(channelName, episodeId, fileExtension) {
         a.href = url;
         
         // Get filename from Content-Disposition header or default based on original extension
-        const contentDisposition = response.headers.get('content-disposition');
+        const contentDisposition = response.headers.get('content-disposition') || response.headers.get('Content-Disposition');
         let filename = `${episodeId}.mp3`; // default
         if (contentDisposition) {
-            const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+            console.log('Content-Disposition header:', contentDisposition);
+            // Try different filename patterns
+            const filenameMatch = contentDisposition.match(/filename[*]?=['"]?([^'";]+)['"]?/i);
             if (filenameMatch && filenameMatch[1]) {
                 filename = filenameMatch[1];
+                console.log('Extracted filename:', filename);
             }
         }
+        console.log('Final download filename:', filename);
         
         a.download = filename;
         document.body.appendChild(a);
@@ -531,17 +535,69 @@ async function downloadAsMP3(channelName, episodeId, fileExtension) {
     }
 }
 
-function downloadOriginalFile(channelName, episodeId, fileExtension) {
-    // Construct the original media URL (same as play functionality)
-    const mediaUrl = `/podcasts/${encodeURIComponent(channelName)}/${encodeURIComponent(episodeId)}${fileExtension}`;
+async function downloadOriginalFile(channelName, episodeId, fileExtension) {
+    const button = event.target;
+    const originalText = button.textContent;
     
-    // Create a temporary link to trigger download
-    const a = document.createElement('a');
-    a.href = mediaUrl;
-    a.download = `${episodeId}${fileExtension}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    try {
+        // Show loading state
+        button.textContent = '⏳ Downloading...';
+        button.disabled = true;
+        
+        // Make request to download endpoint
+        const response = await fetch(`/api/channels/${encodeURIComponent(channelName)}/episodes/${encodeURIComponent(episodeId)}/download-original`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Download failed');
+        }
+        
+        // Create download link
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        // Get filename from Content-Disposition header or fallback
+        const contentDisposition = response.headers.get('content-disposition') || response.headers.get('Content-Disposition');
+        let filename = `${episodeId}${fileExtension}`; // fallback
+        if (contentDisposition) {
+            console.log('Content-Disposition header:', contentDisposition);
+            // Try different filename patterns
+            const filenameMatch = contentDisposition.match(/filename[*]?=['"]?([^'";]+)['"]?/i);
+            if (filenameMatch && filenameMatch[1]) {
+                filename = filenameMatch[1];
+                console.log('Extracted filename:', filename);
+            }
+        }
+        console.log('Final download filename:', filename);
+        
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        // Show success state briefly
+        button.textContent = '✅ Downloaded!';
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.disabled = false;
+        }, 2000);
+        
+    } catch (error) {
+        console.error('Error downloading original file:', error);
+        button.textContent = '❌ Failed';
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.disabled = false;
+        }, 3000);
+    }
 }
 
 function escapeHtml(text) {

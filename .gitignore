@@ -197,4 +197,5 @@ CLAUDE.md
 .cursorindexingignore
 appdata/
 refresh_timestamps.json
+*.m4a
 buildandpush.sh

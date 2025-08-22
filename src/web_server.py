@@ -350,6 +350,14 @@ class YouTubePodcastServer:
             """Convert and download episode as MP3."""
             return self._handle_mp3_download(channel_name, episode_id)
 
+        @self.app.route(
+            "/api/channels/<channel_name>/episodes/<episode_id>/download-original",
+            methods=["POST"],
+        )
+        def download_episode_original(channel_name: str, episode_id: str):
+            """Download episode in original format with clean filename."""
+            return self._handle_original_download(channel_name, episode_id)
+
         @self.app.route("/api/channels/<channel_name>/refresh", methods=["POST"])
         def refresh_single_channel(channel_name: str):
             """Trigger refresh for a single channel."""
@@ -1274,6 +1282,51 @@ class YouTubePodcastServer:
             self.logger.error(f"Error triggering single channel refresh: {e}")
             return jsonify({"error": "Failed to start channel refresh"}), 500
 
+    def _generate_download_filename(
+        self, channel_name: str, episode_id: str, extension: str
+    ) -> str:
+        """Generate a clean download filename from channel and episode metadata."""
+        import re
+
+        try:
+            # Get channel display name
+            config = self._load_channel_config()
+            channels = config.get("channels", [])
+            channel = next((ch for ch in channels if ch["name"] == channel_name), None)
+            channel_display_name = (
+                channel.get("display_name", channel_name) if channel else channel_name
+            )
+
+            # Load episode metadata
+            channel_dir = self.videos_dir / channel_name
+            episode_json = channel_dir / f"{episode_id}.json"
+            episode_title = episode_id  # fallback
+
+            if episode_json.exists():
+                try:
+                    with open(episode_json, "r", encoding="utf-8") as f:
+                        episode_data = json.load(f)
+                        episode_title = episode_data.get("title", episode_id)
+                except Exception:
+                    pass  # use fallback
+
+            # Create clean filename: "Channel_Name - Episode_Title.ext"
+            filename = f"{channel_display_name} - {episode_title}"
+
+            # Clean filename: replace spaces with underscores, remove special chars
+            filename = re.sub(
+                r"[^\w\s-]", "", filename
+            )  # Keep alphanumeric, spaces, hyphens
+            filename = re.sub(r"\s+", "_", filename)  # Replace spaces with underscores
+            filename = re.sub(r"_+", "_", filename)  # Collapse multiple underscores
+            filename = filename.strip("_")  # Remove leading/trailing underscores
+
+            return f"{filename}{extension}"
+
+        except Exception:
+            # Fallback to simple filename
+            return f"{episode_id}{extension}"
+
     def _handle_mp3_download(self, channel_name: str, episode_id: str):
         """Handle MP3 conversion and download for an episode."""
         import tempfile
@@ -1314,11 +1367,15 @@ class YouTubePodcastServer:
                 file_ext = episode_file.suffix.lower()
                 if file_ext == ".mp3":
                     mimetype = "audio/mpeg"
-                    download_name = f"{episode_id}.mp3"
+                    download_name = self._generate_download_filename(
+                        channel_name, episode_id, ".mp3"
+                    )
                 else:  # .m4a
                     mimetype = "audio/mp4"
-                    download_name = f"{episode_id}.m4a"
-                
+                    download_name = self._generate_download_filename(
+                        channel_name, episode_id, ".m4a"
+                    )
+
                 try:
                     return send_file(
                         str(episode_file),
@@ -1327,8 +1384,12 @@ class YouTubePodcastServer:
                         download_name=download_name,
                     )
                 except Exception as e:
-                    self.logger.error(f"Error serving {file_ext.upper()} file {episode_file}: {e}")
-                    return jsonify({"error": f"Failed to serve {file_ext.upper()} file"}), 500
+                    self.logger.error(
+                        f"Error serving {file_ext.upper()} file {episode_file}: {e}"
+                    )
+                    return jsonify(
+                        {"error": f"Failed to serve {file_ext.upper()} file"}
+                    ), 500
 
             # Convert to MP3 using FFmpeg
             try:
@@ -1381,7 +1442,9 @@ class YouTubePodcastServer:
                         temp_mp3_path,
                         mimetype="audio/mpeg",
                         as_attachment=True,
-                        download_name=f"{episode_id}.mp3",
+                        download_name=self._generate_download_filename(
+                            channel_name, episode_id, ".mp3"
+                        ),
                     )
 
                     # Clean up temp file after sending
@@ -1419,6 +1482,73 @@ class YouTubePodcastServer:
         except Exception as e:
             self.logger.error(
                 f"Error in MP3 download for {channel_name}/{episode_id}: {e}"
+            )
+            return jsonify({"error": "Internal server error"}), 500
+
+    def _handle_original_download(self, channel_name: str, episode_id: str):
+        """Handle download of original episode file with clean filename."""
+        try:
+            # Sanitize inputs
+            channel_name = secure_filename(channel_name)
+            episode_id = secure_filename(episode_id)
+
+            # Validate channel exists
+            config = self._load_channel_config()
+            channels = config.get("channels", [])
+            channel_exists = any(ch["name"] == channel_name for ch in channels)
+
+            if not channel_exists:
+                return jsonify({"error": "Channel not found"}), 404
+
+            # Find the episode file
+            channel_dir = self.videos_dir / channel_name
+            if not channel_dir.exists():
+                return jsonify({"error": "No episodes found for this channel"}), 404
+
+            # Look for episode file with various extensions
+            episode_file = None
+            supported_extensions = [".mp4", ".m4a", ".mp3", ".webm", ".mkv", ".avi"]
+
+            for ext in supported_extensions:
+                candidate_file = channel_dir / f"{episode_id}{ext}"
+                if candidate_file.exists():
+                    episode_file = candidate_file
+                    break
+
+            if not episode_file:
+                return jsonify({"error": "Episode file not found"}), 404
+
+            # Determine MIME type
+            file_ext = episode_file.suffix.lower()
+            mimetype_map = {
+                ".mp4": "video/mp4",
+                ".m4a": "audio/mp4",
+                ".mp3": "audio/mpeg",
+                ".webm": "video/webm",
+                ".mkv": "video/x-matroska",
+                ".avi": "video/x-msvideo",
+            }
+            mimetype = mimetype_map.get(file_ext, "application/octet-stream")
+
+            # Generate clean download filename
+            download_name = self._generate_download_filename(
+                channel_name, episode_id, file_ext
+            )
+
+            try:
+                return send_file(
+                    str(episode_file),
+                    mimetype=mimetype,
+                    as_attachment=True,
+                    download_name=download_name,
+                )
+            except Exception as e:
+                self.logger.error(f"Error serving original file {episode_file}: {e}")
+                return jsonify({"error": "Failed to serve file"}), 500
+
+        except Exception as e:
+            self.logger.error(
+                f"Error in original download for {channel_name}/{episode_id}: {e}"
             )
             return jsonify({"error": "Internal server error"}), 500
 
