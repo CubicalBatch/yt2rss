@@ -4,12 +4,12 @@ A self-hosted solution that converts YouTube channels into podcast RSS feeds. Su
 
 ## Features
 
-- **🎥 Automatic Video Downloads**: Monitor YouTube channels and download new videos in 720p MP4 format
-- **🚫 SponsorBlock Integration**: Automatically remove sponsored segments, self-promotion, and other unwanted content
-- **📻 Podcast RSS Feeds**: Generate standard RSS feeds compatible with any podcast app
-- **⏰ Per-Channel Scheduling**: Individual refresh controls with configurable intervals for each channel
-- **🎵 Episode Playback**: Click episodes to play directly in your browser
-- **🌐 Web Interface**: Web UI with episode modals, individual channel refresh, and status monitoring
+- **Automatic Video Downloads**: Monitor YouTube channels and download new videos in 720p MP4 format
+- **SponsorBlock Integration**: Automatically remove sponsored segments, self-promotion, and other unwanted content
+- **Podcast RSS Feeds**: Generate standard RSS feeds compatible with any podcast app
+- **Per-Channel Scheduling**: Individual refresh controls with configurable intervals for each channel
+- **Episode Playback**: Click episodes to play directly in your browser
+- **Web Interface**: Web UI with episode, individual channel refresh, and status monitoring
 
 ![yt2rss screenshot](yt2rss_screenshot.png)
 
