@@ -196,12 +196,12 @@ class YouTubeDownloader:
             self.logger.info(f"   🎵 Audio format selected: {format_string}")
         else:  # video
             if quality == "480p":
-                format_string = "best[height<=480][ext=mp4]/best[ext=mp4]/best"
+                format_string = "best[height<=480][ext=mp4]/best[height<=480]/best"
                 self.logger.info(
                     f"   📹 Video format selected: 480p (format: {format_string})"
                 )
             else:  # max quality
-                format_string = "best[ext=mp4]/best"
+                format_string = "best"
                 self.logger.info(
                     f"   📹 Video format selected: max quality (format: {format_string})"
                 )
