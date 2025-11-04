@@ -417,6 +417,8 @@ async function openEpisodesModal(channelName, displayName) {
                             <button class="play-btn" onclick="openEpisodeMedia('${channelName}', '${episode.id}', '${episode.file_extension || '.mp4'}')">▶️ Play</button>
                             <button class="download-audio-btn" onclick="downloadAsMP3('${channelName}', '${episode.id}', '${episode.file_extension || '.mp4'}')">🎵 Download Audio</button>
                             <button class="download-original-btn" onclick="downloadOriginalFile('${channelName}', '${episode.id}', '${episode.file_extension || '.mp4'}')">📁 Download Original</button>
+                            <button class="redownload-btn" onclick="redownloadEpisode('${channelName}', '${episode.id}', '${escapeHtml(episode.title)}')">🔄 Redownload</button>
+                            <button class="delete-btn" onclick="deleteEpisode('${channelName}', '${episode.id}', '${escapeHtml(episode.title)}')">🗑️ Delete</button>
                         </div>
                     </div>
                 `).join('');
@@ -592,6 +594,115 @@ async function downloadOriginalFile(channelName, episodeId, fileExtension) {
         
     } catch (error) {
         console.error('Error downloading original file:', error);
+        button.textContent = '❌ Failed';
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.disabled = false;
+        }, 3000);
+    }
+}
+
+async function deleteEpisode(channelName, episodeId, episodeTitle) {
+    const button = event.target;
+    const originalText = button.textContent;
+
+    // Confirm deletion
+    if (!confirm(`Are you sure you want to delete "${episodeTitle}"?\n\nThis action cannot be undone.`)) {
+        return;
+    }
+
+    try {
+        // Show loading state
+        button.textContent = '⏳ Deleting...';
+        button.disabled = true;
+
+        // Make request to delete endpoint
+        const response = await fetch(`/api/channels/${encodeURIComponent(channelName)}/episodes/${encodeURIComponent(episodeId)}/delete`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Delete failed');
+        }
+
+        // Show success state briefly
+        button.textContent = '✅ Deleted!';
+
+        // Remove the episode from the UI after a short delay
+        setTimeout(() => {
+            const episodeItem = button.closest('.episode-item');
+            if (episodeItem) {
+                episodeItem.style.transition = 'opacity 0.3s ease-out';
+                episodeItem.style.opacity = '0';
+                setTimeout(() => {
+                    episodeItem.remove();
+
+                    // Check if there are no more episodes
+                    const episodesList = document.querySelector('.episodes-list');
+                    if (episodesList && episodesList.children.length === 0) {
+                        document.getElementById('episodesContent').innerHTML = `
+                            <div class="episodes-empty">
+                                <h3>No Episodes Found</h3>
+                                <p>This channel doesn't have any downloaded episodes yet. Try refreshing the podcasts to download some content.</p>
+                            </div>
+                        `;
+                    }
+                }, 300);
+            }
+        }, 1000);
+
+    } catch (error) {
+        console.error('Error deleting episode:', error);
+        button.textContent = '❌ Failed';
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.disabled = false;
+        }, 3000);
+    }
+}
+
+async function redownloadEpisode(channelName, episodeId, episodeTitle) {
+    const button = event.target;
+    const originalText = button.textContent;
+
+    // Confirm redownload
+    if (!confirm(`Redownload "${episodeTitle}"?\n\nThis will delete the current file and download it again.`)) {
+        return;
+    }
+
+    try {
+        // Show loading state
+        button.textContent = '⏳ Redownloading...';
+        button.disabled = true;
+
+        // Make request to redownload endpoint
+        const response = await fetch(`/api/channels/${encodeURIComponent(channelName)}/episodes/${encodeURIComponent(episodeId)}/redownload`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Redownload failed');
+        }
+
+        // Show success state briefly
+        button.textContent = '✅ Redownloaded!';
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.disabled = false;
+        }, 2000);
+
+    } catch (error) {
+        console.error('Error redownloading episode:', error);
         button.textContent = '❌ Failed';
         setTimeout(() => {
             button.textContent = originalText;
