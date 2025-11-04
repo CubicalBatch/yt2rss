@@ -29,6 +29,16 @@ docker run -d \
   -v $(pwd)/appdata/config:/app/appdata/config \
   -v $(pwd)/appdata/podcasts:/app/appdata/podcasts \
   cubicalbatch/yt2rss
+
+# Optional: Run with SOCKS5 proxy support
+docker run -d \
+  --name yt2rss \
+  -p 5000:5000 \
+  -e BASE_URL=http://localhost:5000 \
+  -e YT_DLP_PROXY=socks5://proxy.example.com:1080 \
+  -v $(pwd)/appdata/config:/app/appdata/config \
+  -v $(pwd)/appdata/podcasts:/app/appdata/podcasts \
+  cubicalbatch/yt2rss
 ```
 
 ### Access Your Podcasts
@@ -94,6 +104,14 @@ Available categories for automatic removal:
 - `BASE_URL`: Base URL for RSS feeds and podcast URLs (default: `http://localhost:5000`)
   - Example: `BASE_URL=https://your-domain.com`
   - Used in RSS feed URLs and media file links
+
+- `YT_DLP_PROXY`: SOCKS5/HTTP/HTTPS proxy for yt-dlp downloads (optional)
+  - Supports SOCKS5, HTTP, and HTTPS proxies
+  - Examples:
+    - `YT_DLP_PROXY=socks5://proxy.example.com:1080`
+    - `YT_DLP_PROXY=socks5://user:pass@proxy.example.com:1080`
+    - `YT_DLP_PROXY=http://proxy.example.com:8080`
+  - When set, all YouTube downloads and metadata fetches will use the specified proxy
 
 ## Development Setup
 

@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -38,6 +39,24 @@ class YouTubeDownloader:
         # Initialize RSS generator for timestamp updates
         self.rss_generator = RSSGenerator()
 
+    def _get_proxy_opts(self) -> Dict[str, str]:
+        """Get proxy configuration from environment variables.
+
+        Returns a dictionary with proxy settings for yt-dlp if YT_DLP_PROXY is set.
+        Supports SOCKS5, HTTP, and HTTPS proxies.
+
+        Example formats:
+        - socks5://host:port
+        - socks5://user:pass@host:port
+        - http://host:port
+        - https://host:port
+        """
+        proxy_url = os.getenv("YT_DLP_PROXY")
+        if proxy_url:
+            self.logger.info(f"🔐 Using proxy: {proxy_url.split('@')[-1]}")  # Don't log credentials
+            return {"proxy": proxy_url}
+        return {}
+
     def load_config(self) -> tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Load channel configuration from YAML file."""
         try:
@@ -63,6 +82,7 @@ class YouTubeDownloader:
             "no_warnings": True,
             "extract_flat": True,
             "playlist_items": f"1:{max_episodes}",
+            **self._get_proxy_opts(),
         }
 
         try:
@@ -97,7 +117,11 @@ class YouTubeDownloader:
 
     def get_video_metadata(self, video_url: str) -> Dict[str, Any]:
         """Get detailed metadata for a single video."""
-        ydl_opts = {"quiet": True, "no_warnings": True}
+        ydl_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            **self._get_proxy_opts(),
+        }
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -215,6 +239,7 @@ class YouTubeDownloader:
             "writedescription": False,
             "writesubtitles": False,
             "writeautomaticsub": False,
+            **self._get_proxy_opts(),
         }
 
         # Add SponsorBlock postprocessor if categories specified

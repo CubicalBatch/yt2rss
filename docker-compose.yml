@@ -11,3 +11,6 @@ services:
       - ./appdata/:/app/appdata/
     environment:
       - BASE_URL=http://localhost:5000
+      # Uncomment and configure to use a SOCKS5 proxy for yt-dlp downloads
+      # - YT_DLP_PROXY=socks5://host:port
+      # - YT_DLP_PROXY=socks5://user:pass@host:port
