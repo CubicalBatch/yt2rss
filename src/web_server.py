@@ -376,6 +376,22 @@ class YouTubePodcastServer:
             """Download episode in original format with clean filename."""
             return self._handle_original_download(channel_name, episode_id)
 
+        @self.app.route(
+            "/api/channels/<channel_name>/episodes/<episode_id>/delete",
+            methods=["DELETE"],
+        )
+        def delete_single_episode(channel_name: str, episode_id: str):
+            """Delete a single episode."""
+            return self._handle_delete_episode(channel_name, episode_id)
+
+        @self.app.route(
+            "/api/channels/<channel_name>/episodes/<episode_id>/redownload",
+            methods=["POST"],
+        )
+        def redownload_single_episode(channel_name: str, episode_id: str):
+            """Redownload a single episode."""
+            return self._handle_redownload_episode(channel_name, episode_id)
+
         @self.app.route("/api/channels/<channel_name>/refresh", methods=["POST"])
         def refresh_single_channel(channel_name: str):
             """Trigger refresh for a single channel."""
@@ -1568,6 +1584,160 @@ class YouTubePodcastServer:
         except Exception as e:
             self.logger.error(
                 f"Error in original download for {channel_name}/{episode_id}: {e}"
+            )
+            return jsonify({"error": "Internal server error"}), 500
+
+    def _handle_delete_episode(self, channel_name: str, episode_id: str):
+        """Handle deletion of a single episode."""
+        try:
+            # Validate channel exists
+            channel_dir = self.videos_dir / channel_name
+            if not channel_dir.exists():
+                return jsonify({"error": "Channel not found"}), 404
+
+            # Check if episode exists
+            json_file = channel_dir / f"{episode_id}.json"
+            if not json_file.exists():
+                return jsonify({"error": "Episode not found"}), 404
+
+            # Remove video files
+            removed_files = []
+            for ext in [".mp4", ".m4a", ".mp3", ".webm", ".mkv", ".avi"]:
+                video_file = channel_dir / f"{episode_id}{ext}"
+                if video_file.exists():
+                    video_file.unlink()
+                    removed_files.append(f"video{ext}")
+                    self.logger.info(f"Removed episode file: {video_file}")
+
+            # Remove JSON metadata
+            if json_file.exists():
+                json_file.unlink()
+                removed_files.append("metadata")
+                self.logger.info(f"Removed metadata: {json_file}")
+
+            # Remove thumbnail
+            thumbnails_dir = channel_dir / "thumbnails"
+            if thumbnails_dir.exists():
+                for thumb_file in thumbnails_dir.glob(f"{episode_id}.*"):
+                    thumb_file.unlink()
+                    removed_files.append("thumbnail")
+                    self.logger.info(f"Removed thumbnail: {thumb_file}")
+
+            if not removed_files:
+                return jsonify({"error": "No files found to delete"}), 404
+
+            # RSS feed will automatically reflect changes on next request (dynamic generation)
+            self.logger.info(
+                f"Successfully deleted episode {episode_id}: {', '.join(removed_files)}"
+            )
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"Episode deleted successfully",
+                    "removed": removed_files,
+                }
+            ), 200
+
+        except Exception as e:
+            self.logger.error(f"Error deleting episode {channel_name}/{episode_id}: {e}")
+            return jsonify({"error": "Internal server error"}), 500
+
+    def _handle_redownload_episode(self, channel_name: str, episode_id: str):
+        """Handle redownloading a single episode."""
+        try:
+            # Validate channel exists in config
+            config = self._load_channel_config()
+            channels = config.get("channels", [])
+            channel_config = None
+            for ch in channels:
+                if ch["name"] == channel_name:
+                    channel_config = ch
+                    break
+
+            if not channel_config:
+                return jsonify({"error": "Channel not found"}), 404
+
+            # First, delete the existing episode
+            channel_dir = self.videos_dir / channel_name
+            json_file = channel_dir / f"{episode_id}.json"
+
+            if not json_file.exists():
+                return jsonify({"error": "Episode not found"}), 404
+
+            # Load episode metadata to get video URL
+            try:
+                with open(json_file, "r") as f:
+                    metadata = json.load(f)
+            except Exception as e:
+                self.logger.error(f"Error reading episode metadata: {e}")
+                return jsonify({"error": "Failed to read episode metadata"}), 500
+
+            video_url = f"https://www.youtube.com/watch?v={episode_id}"
+            video_title = metadata.get("title", "Unknown")
+
+            # Delete old files
+            for ext in [".mp4", ".m4a", ".mp3", ".webm", ".mkv", ".avi"]:
+                video_file = channel_dir / f"{episode_id}{ext}"
+                if video_file.exists():
+                    video_file.unlink()
+
+            if json_file.exists():
+                json_file.unlink()
+
+            thumbnails_dir = channel_dir / "thumbnails"
+            if thumbnails_dir.exists():
+                for thumb_file in thumbnails_dir.glob(f"{episode_id}.*"):
+                    thumb_file.unlink()
+
+            # Redownload the episode
+            try:
+                from .downloader import YouTubeDownloader
+            except ImportError:
+                from downloader import YouTubeDownloader
+
+            # Initialize downloader with proper paths
+            project_root = Path(__file__).parent.parent
+            config_path = self.config_dir / "channels.yaml"
+            downloader = YouTubeDownloader(str(config_path), str(project_root))
+
+            # Get download settings from channel config
+            format_type = channel_config.get("format", "video")
+            quality = channel_config.get("quality", "max")
+            sponsorblock_categories = channel_config.get("sponsorblock_categories")
+
+            # Prepare video info
+            video_info = {
+                "id": episode_id,
+                "title": video_title,
+                "url": video_url,
+                "upload_date": metadata.get("upload_date", ""),
+                "duration": metadata.get("duration", 0),
+            }
+
+            # Download the video
+            success = downloader.download_video(
+                video_info,
+                channel_name,
+                sponsorblock_categories=sponsorblock_categories,
+                format_type=format_type,
+                quality=quality,
+            )
+
+            if not success:
+                return jsonify({"error": "Failed to redownload episode"}), 500
+
+            # RSS feed will automatically reflect changes on next request (dynamic generation)
+            self.logger.info(f"Successfully redownloaded episode {episode_id}")
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"Episode '{video_title}' redownloaded successfully",
+                }
+            ), 200
+
+        except Exception as e:
+            self.logger.error(
+                f"Error redownloading episode {channel_name}/{episode_id}: {e}"
             )
             return jsonify({"error": "Internal server error"}), 500
 
