@@ -1695,7 +1695,10 @@ class YouTubePodcastServer:
             except ImportError:
                 from downloader import YouTubeDownloader
 
-            downloader = YouTubeDownloader(base_dir=str(self.base_dir))
+            # Initialize downloader with proper paths
+            project_root = Path(__file__).parent.parent
+            config_path = self.config_dir / "channels.yaml"
+            downloader = YouTubeDownloader(str(config_path), str(project_root))
 
             # Get download settings from channel config
             format_type = channel_config.get("format", "video")
