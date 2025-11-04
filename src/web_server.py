@@ -99,6 +99,24 @@ class YouTubePodcastServer:
         # Enable MIME type for MP4 files
         mimetypes.add_type("video/mp4", ".mp4")
 
+    def _get_proxy_opts(self) -> dict:
+        """Get proxy configuration from environment variables.
+
+        Returns a dictionary with proxy settings for yt-dlp if YT_DLP_PROXY is set.
+        Supports SOCKS5, HTTP, and HTTPS proxies.
+
+        Example formats:
+        - socks5://host:port
+        - socks5://user:pass@host:port
+        - http://host:port
+        - https://host:port
+        """
+        proxy_url = os.getenv("YT_DLP_PROXY")
+        if proxy_url:
+            self.logger.info(f"🔐 Using proxy: {proxy_url.split('@')[-1]}")  # Don't log credentials
+            return {"proxy": proxy_url}
+        return {}
+
     def _add_log_message(self, message: str):
         """Add a log message to the recent logs list for UI display."""
         timestamp = datetime.now().isoformat()
@@ -833,6 +851,7 @@ class YouTubePodcastServer:
                 "no_warnings": True,
                 "extract_flat": True,
                 "playlistend": 1,  # Only get first video to verify channel exists
+                **self._get_proxy_opts(),
             }
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
