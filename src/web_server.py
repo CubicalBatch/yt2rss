@@ -1626,16 +1626,7 @@ class YouTubePodcastServer:
             if not removed_files:
                 return jsonify({"error": "No files found to delete"}), 404
 
-            # Regenerate RSS feed
-            try:
-                from .rss_generator import RSSGenerator
-            except ImportError:
-                from rss_generator import RSSGenerator
-
-            base_url = os.getenv("BASE_URL", request.host_url.rstrip("/"))
-            rss_generator = RSSGenerator(base_url)
-            rss_generator.generate_rss_for_channel(channel_name, self.videos_dir)
-
+            # RSS feed will automatically reflect changes on next request (dynamic generation)
             self.logger.info(
                 f"Successfully deleted episode {episode_id}: {', '.join(removed_files)}"
             )
@@ -1732,16 +1723,7 @@ class YouTubePodcastServer:
             if not success:
                 return jsonify({"error": "Failed to redownload episode"}), 500
 
-            # Regenerate RSS feed
-            try:
-                from .rss_generator import RSSGenerator
-            except ImportError:
-                from rss_generator import RSSGenerator
-
-            base_url = os.getenv("BASE_URL", request.host_url.rstrip("/"))
-            rss_generator = RSSGenerator(base_url)
-            rss_generator.generate_rss_for_channel(channel_name, self.videos_dir)
-
+            # RSS feed will automatically reflect changes on next request (dynamic generation)
             self.logger.info(f"Successfully redownloaded episode {episode_id}")
             return jsonify(
                 {
